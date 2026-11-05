@@ -2,6 +2,7 @@
 .gradle
 /.kotlin/
 /keystore.properties
+/.signing/
 *.jks
 *.keystore
 *.p12
