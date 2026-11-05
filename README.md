@@ -12,6 +12,12 @@ An enhanced **Cue Sheet** extension for **Hammerhead Karoo 3**.
 
 Designed to bring the Garmin Course Points list experience to Karoo with clean high-contrast typography, interactive touch details, auto-detected terrain envelopes (Road, Gravel, MTB), and distance- and VAM-weighted gradient ETA extrapolation.
 
+<p align="center">
+  <img src="assets/screenshot-cuesheet-list.png" width="300" alt="Full-Page Cue Sheet View"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/screenshot-cuesheet-detail.png" width="300" alt="Waypoint Detail with Elevation Sparkline"/>
+</p>
+
 ---
 
 ## Features

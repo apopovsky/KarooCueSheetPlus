@@ -7,5 +7,9 @@
   "latestVersionCode": 1,
   "developer": "apopovsky",
   "description": "Full-Page and Single-Field Cue Sheet with gradient-aware ETA, climb integration, and touch details for Hammerhead Karoo 3.",
-  "releaseNotes": "Initial release: Full-page list with upcoming POIs/climbs, touch elevation sparkline detail, single-field next POI summary, and multi-regime distance- & VAM-weighted ETA extrapolation."
+  "releaseNotes": "Initial release: Full-page list with upcoming POIs/climbs, touch elevation sparkline detail, single-field next POI summary, and multi-regime distance- & VAM-weighted ETA extrapolation.",
+  "screenshotUrls": [
+    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.0/screenshot-cuesheet-list.png",
+    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.0/screenshot-cuesheet-detail.png"
+  ]
 }
