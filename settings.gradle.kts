@@ -34,10 +34,13 @@ dependencyResolutionManagement {
 rootProject.name = "KarooCueSheetPlus"
 include(":shared")
 include(":app")
-include(":simulator")
 
-includeBuild("../KarooExtensionSimulator") {
-    dependencySubstitution {
-        substitute(module("com.itl.karoo:core")).using(project(":core"))
+val simulatorProjectDir = file("../KarooExtensionSimulator")
+if (simulatorProjectDir.exists()) {
+    include(":simulator")
+    includeBuild("../KarooExtensionSimulator") {
+        dependencySubstitution {
+            substitute(module("com.itl.karoo:core")).using(project(":core"))
+        }
     }
 }
