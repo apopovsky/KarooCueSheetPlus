@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/cuesheet-icon.png" width="160" alt="Karoo Cue Sheet+ Icon"/>
+</p>
+
 # Karoo Cue Sheet+
 
 [![CI/CD - Build and Release](https://github.com/apopovsky/KarooCueSheetPlus/actions/workflows/ci.yml/badge.svg)](https://github.com/apopovsky/KarooCueSheetPlus/actions/workflows/ci.yml)
