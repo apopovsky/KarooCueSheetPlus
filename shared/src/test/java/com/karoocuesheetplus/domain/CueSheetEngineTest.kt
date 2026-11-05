@@ -196,6 +196,44 @@ class CueSheetEngineTest {
         assertTrue(detailSnap.selectedDetailPoint!!.sparklineElevationsM.isNotEmpty())
     }
 
+    @Test
+    fun `stationary or indoor ride start at 0km never marks upcoming waypoints as passed`() {
+        val pts = listOf(
+            LatLngPoint(-31.4000, -64.1000),
+            LatLngPoint(-31.4100, -64.1100),
+            LatLngPoint(-31.4200, -64.1200),
+            LatLngPoint(-31.4300, -64.1300),
+        )
+        val indexed = RouteGeometryEngine.buildIndexedPolyline(pts, declaredRouteDistanceM = 3400.0)
+        val pois = listOf(
+            RawPoiInput("p1", -31.401, -64.101, "generic", "Entrada", listOf(100.0), false),
+            RawPoiInput("p2", -31.408, -64.108, "generic", "Entrada", listOf(800.0), false),
+            RawPoiInput("p3", -31.421, -64.121, "water", "Agua??", listOf(2100.0), false),
+        )
+
+        val pointsAtStart = RouteGeometryEngine.buildCuePoints(
+            routeName = "Test Route",
+            indexedPolyline = indexed,
+            elevationProfile = emptyList(),
+            routePois = pois,
+            globalPois = emptyList(),
+            climbs = emptyList(),
+            includeClimbs = false,
+            includeGlobalPois = false,
+            riderDistanceAlongRouteM = 0.0,
+            rejoinExtraDistanceM = 0.0,
+            flatSpeedMps = 7.0,
+            nowEpochMillis = System.currentTimeMillis(),
+        )
+
+        assertEquals(4, pointsAtStart.size) // 3 POIs + FINISH
+        assertTrue(pointsAtStart.none { it.isPassed })
+        assertTrue(pointsAtStart[0].isNextActive)
+        assertEquals("Entrada", pointsAtStart[0].name)
+        assertEquals(100.0, pointsAtStart[0].deltaDistanceM, 1.0)
+        assertTrue(pointsAtStart.all { it.deltaDistanceM >= 0.0 })
+    }
+
     private fun assertEquals(expected: Double, actual: Double, delta: Double) {
         org.junit.Assert.assertEquals(expected, actual, delta)
     }

@@ -72,7 +72,10 @@ class RideNavigationRepository private constructor(private val appContext: Conte
     private var latestDistanceToDestinationM: Double? = null
 
     @Volatile
-    private var isRiderOnRoute: Boolean = true
+    private var isRiderOnRoute: Boolean = false
+
+    @Volatile
+    private var latestRideDistanceM: Double = 0.0
 
     @Volatile
     private var latestLocation: LatLngPoint? = null
@@ -323,8 +326,23 @@ class RideNavigationRepository private constructor(private val appContext: Conte
                 if (onRouteVal != null) {
                     isRiderOnRoute = onRouteVal >= 0.5
                 }
+                Timber.d("DTD stream: dtd=$latestDistanceToDestinationM, onRoute=$isRiderOnRoute")
             } else {
                 latestDistanceToDestinationM = null
+            }
+        }
+
+        // 5b. Cumulative Ride Distance / Odometer (m)
+        consumerIds += service.addConsumer<OnStreamState>(
+            OnStreamState.StartStreaming(DataType.Type.DISTANCE)
+        ) { streamEvent ->
+            val streaming = streamEvent.state as? StreamState.Streaming
+            if (streaming != null) {
+                val dist = streaming.dataPoint.values[DataType.Field.DISTANCE]
+                    ?: streaming.dataPoint.singleValue
+                if (dist != null && dist >= 0.0) {
+                    latestRideDistanceM = dist
+                }
             }
         }
 
@@ -533,19 +551,55 @@ class RideNavigationRepository private constructor(private val appContext: Conte
 
     private fun resolveRiderDistanceAlongRoute(route: CachedRouteGeometry, totalDistM: Double): Double {
         val dtd = latestDistanceToDestinationM
-        if (isRiderOnRoute && dtd != null && dtd >= 0.0) {
-            return (totalDistM - dtd).coerceIn(0.0, totalDistM)
-        }
         val loc = latestLocation
+        val rideDistM = latestRideDistanceM
+
+        // If no GPS lock yet, rider is at the start of the route (0.0)
+        if (loc == null && (dtd == null || dtd <= 0.0)) {
+            Timber.d("resolveRiderDist: No GPS fix and no valid DTD -> 0.0")
+            return 0.0
+        }
+
+        // Validate DTD:
+        // A DTD near 0 (< 100m) can only indicate finished if the rider has covered substantial distance or is right at the finish point.
+        val isDtdPlausible = if (dtd != null && dtd >= 0.0) {
+            if (dtd < 100.0 && totalDistM > 500.0) {
+                rideDistM > (totalDistM * 0.7) || (loc != null && route.indexedPolyline.points.isNotEmpty() &&
+                    RouteGeometryEngine.haversineMeters(loc, route.indexedPolyline.points.last()) < 150.0)
+            } else {
+                dtd <= totalDistM + 1000.0
+            }
+        } else {
+            false
+        }
+
+        if (isRiderOnRoute && isDtdPlausible && dtd != null) {
+            val distAlong = (totalDistM - dtd).coerceIn(0.0, totalDistM)
+            Timber.d("resolveRiderDist: OnRoute with valid DTD=$dtd -> $distAlong m (total=$totalDistM)")
+            return distAlong
+        }
+
         if (loc != null) {
             val proj = RouteGeometryEngine.projectOntoPolyline(route.indexedPolyline, loc)
             if (proj != null) {
+                // If ride hasn't started yet and projected point is far along the route with large cross-track distance,
+                // don't leap forward to a midpoint that happens to be near rider's home
+                if (rideDistM < 200.0 && proj.distanceAlongRouteM > 500.0 && proj.crossTrackDistanceM > 100.0) {
+                    Timber.d("resolveRiderDist: Pre-ride off-route near mid-route (along=${proj.distanceAlongRouteM}, cross=${proj.crossTrackDistanceM}) -> 0.0")
+                    return 0.0
+                }
+                Timber.d("resolveRiderDist: Projected onto route: along=${proj.distanceAlongRouteM} m (cross=${proj.crossTrackDistanceM} m)")
                 return proj.distanceAlongRouteM.coerceIn(0.0, totalDistM)
             }
         }
-        if (dtd != null && dtd >= 0.0) {
-            return (totalDistM - dtd).coerceIn(0.0, totalDistM)
+
+        if (isDtdPlausible && dtd != null) {
+            val distAlong = (totalDistM - dtd).coerceIn(0.0, totalDistM)
+            Timber.d("resolveRiderDist: Fallback DTD=$dtd -> $distAlong m")
+            return distAlong
         }
+
+        Timber.d("resolveRiderDist: Defaulting to 0.0")
         return 0.0
     }
 

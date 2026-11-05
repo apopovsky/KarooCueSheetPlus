@@ -238,7 +238,9 @@ object RouteGeometryEngine {
         var nextActiveAssigned = false
         return sorted.map { cand ->
             val rawDeltaM = cand.distanceM - riderDistanceAlongRouteM
-            val isPassed = rawDeltaM < -PASSED_HYSTERESIS_M && cand.category != CueCategory.FINISH
+            val isPassed = riderDistanceAlongRouteM > PASSED_HYSTERESIS_M &&
+                rawDeltaM < -PASSED_HYSTERESIS_M &&
+                cand.category != CueCategory.FINISH
             val effectiveRemainingM = if (isPassed) {
                 rawDeltaM // Negative value e.g. -4200 m
             } else {
