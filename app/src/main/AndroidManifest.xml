@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:name=".CueSheetApplication"
+        android:allowBackup="true"
+        android:icon="@drawable/ic_cuesheet_logo"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".extension.CueSheetExtensionService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.hammerhead.karooext.KAROO_EXTENSION" />
+            </intent-filter>
+            <meta-data
+                android:name="io.hammerhead.karooext.EXTENSION_INFO"
+                android:resource="@xml/extension_info" />
+        </service>
+
+        <receiver
+            android:name=".extension.CueSheetActionReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.karoocuesheetplus.ACTION_SCROLL_UP" />
+                <action android:name="com.karoocuesheetplus.ACTION_SCROLL_DOWN" />
+                <action android:name="com.karoocuesheetplus.ACTION_SELECT_ROW" />
+                <action android:name="com.karoocuesheetplus.ACTION_CLOSE_DETAIL" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+
+</manifest>

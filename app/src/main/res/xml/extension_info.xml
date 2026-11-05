@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ExtensionInfo
+    id="karoo-cuesheet-plus"
+    displayName="@string/extension_name"
+    icon="@drawable/ic_cuesheet_logo"
+    scansDevices="false"
+    mapLayer="false"
+    fitFile="false">
+
+    <DataType
+        typeId="cuesheet-full"
+        displayName="@string/datatype_cuesheet_full_name"
+        description="@string/datatype_cuesheet_full_desc"
+        graphical="true"
+        icon="@drawable/ic_cuesheet_logo" />
+
+    <DataType
+        typeId="next-waypoint"
+        displayName="@string/datatype_next_waypoint_name"
+        description="@string/datatype_next_waypoint_desc"
+        graphical="true"
+        icon="@drawable/ic_next_waypoint" />
+
+    <BonusAction
+        actionId="scroll-up"
+        displayName="@string/bonus_scroll_up" />
+
+    <BonusAction
+        actionId="scroll-down"
+        displayName="@string/bonus_scroll_down" />
+
+    <BonusAction
+        actionId="close-detail"
+        displayName="@string/bonus_close_detail" />
+
+</ExtensionInfo>

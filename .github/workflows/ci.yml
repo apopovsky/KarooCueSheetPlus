@@ -1,0 +1,245 @@
+name: CI/CD - Build and Release
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Stable release tag (e.g. v1.0.0); blank runs checks only'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify production and simulator
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Create local.properties
+      run: |
+        echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+    - name: Setup Gradle properties for karoo-ext
+      env:
+        GPR_USER: ${{ secrets.GPR_USER }}
+        GPR_TOKEN: ${{ secrets.GPR_TOKEN }}
+      run: |
+        mkdir -p ~/.gradle
+        echo "gpr.user=${GPR_USER:-${{ github.actor }}}" >> ~/.gradle/gradle.properties
+        echo "gpr.key=${GPR_TOKEN:-${{ secrets.GITHUB_TOKEN }}}" >> ~/.gradle/gradle.properties
+
+    - name: Verify and build debug
+      run: ./gradlew :shared:testDebugUnitTest :app:assembleDebug :simulator:assembleDebug --stacktrace
+
+    - name: Upload verification reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: verification-reports
+        path: |
+          shared/build/test-results/**/*.xml
+          shared/build/reports/tests/
+        retention-days: 7
+
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: cuesheet-debug-apk
+        path: app/build/outputs/apk/debug/KarooCueSheetPlus-*.apk
+        retention-days: 30
+
+  release:
+    name: Publish Karoo release
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.tag != ''
+    permissions:
+      contents: write
+      packages: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Create local.properties
+      run: |
+        echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+    - name: Setup Gradle properties for karoo-ext
+      env:
+        GPR_USER: ${{ secrets.GPR_USER }}
+        GPR_TOKEN: ${{ secrets.GPR_TOKEN }}
+      run: |
+        mkdir -p ~/.gradle
+        echo "gpr.user=${GPR_USER:-${{ github.actor }}}" >> ~/.gradle/gradle.properties
+        echo "gpr.key=${GPR_TOKEN:-${{ secrets.GITHUB_TOKEN }}}" >> ~/.gradle/gradle.properties
+
+    - name: Validate release tag
+      id: release_source
+      env:
+        RELEASE_TAG: ${{ inputs.tag }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: |
+        git check-ref-format "refs/tags/$RELEASE_TAG"
+        tag_commit=$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")
+        if [[ "$tag_commit" != "$GITHUB_SHA" || "$tag_commit" != "$(git rev-parse HEAD)" ]]; then
+          echo "Release tag must point to GITHUB_SHA; select the same tag as the workflow ref"
+          exit 1
+        fi
+        echo "commit=$tag_commit" >> "$GITHUB_OUTPUT"
+        if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Publication requires a stable tag such as v1.0.0"
+          exit 1
+        fi
+        python3 - <<'PY'
+        import json, os, re
+        from pathlib import Path
+        manifest = json.loads(Path('app/manifest.json').read_text())
+        build = Path('app/build.gradle.kts').read_text()
+        version = re.search(r'versionName = "([^"]+)"', build).group(1)
+        code = int(re.search(r'versionCode = (\d+)', build).group(1))
+        tag = os.environ['RELEASE_TAG']
+        assert tag == 'v' + version, 'Tag and Android version differ'
+        assert manifest['latestVersion'] == version, 'Manifest version differs'
+        assert manifest['latestVersionCode'] == code, 'Manifest version code differs'
+        prefix = f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/releases/download/{tag}/'
+        assert manifest['latestApkUrl'] == prefix + f'KarooCueSheetPlus-v{version}-release.apk'
+        assert manifest['iconUrl'] == prefix + 'cuesheet-icon.png'
+        PY
+
+    - name: Restore release signing key
+      env:
+        RELEASE_STORE_BASE64: ${{ secrets.RELEASE_STORE_BASE64 }}
+        RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+        RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+        RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+      run: |
+        python3 - <<'PY'
+        import base64, os
+        from pathlib import Path
+        names = ('RELEASE_STORE_BASE64', 'RELEASE_STORE_PASSWORD', 'RELEASE_KEY_ALIAS', 'RELEASE_KEY_PASSWORD')
+        missing = [name for name in names if not os.environ.get(name)]
+        if missing:
+            raise SystemExit('Missing release signing secrets: ' + ', '.join(missing))
+        path = Path(os.environ['RUNNER_TEMP']) / 'cuesheet-release.keystore'
+        path.write_bytes(base64.b64decode(os.environ['RELEASE_STORE_BASE64'], validate=True))
+        path.chmod(0o600)
+        PY
+
+    - name: Build Karoo release APK
+      env:
+        RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+        RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+        RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+      run: RELEASE_STORE_FILE="$RUNNER_TEMP/cuesheet-release.keystore" ./gradlew :app:assembleRelease --no-configuration-cache --stacktrace
+
+    - name: Verify release signing certificate and APK identity
+      env:
+        RELEASE_TAG: ${{ inputs.tag }}
+      run: |
+        build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+        apk="app/build/outputs/apk/release/KarooCueSheetPlus-${RELEASE_TAG}-release.apk"
+        "$build_tools/apksigner" verify --print-certs "$apk" > "$RUNNER_TEMP/cuesheet-certificate.txt"
+        "$build_tools/aapt" dump badging "$apk" > "$RUNNER_TEMP/cuesheet-apk.txt"
+        python3 - <<'PY'
+        import json, os, re
+        from pathlib import Path
+        manifest = json.loads(Path('app/manifest.json').read_text())
+        metadata = (Path(os.environ['RUNNER_TEMP']) / 'cuesheet-apk.txt').read_text()
+        package, code, version = re.search(r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", metadata).groups()
+        assert package == manifest['packageName']
+        assert int(code) == manifest['latestVersionCode']
+        assert version == manifest['latestVersion']
+        PY
+
+    - name: Remove temporary signing key
+      if: always()
+      run: rm -f "$RUNNER_TEMP/cuesheet-release.keystore"
+
+    - name: Upload Release APK to GitHub Release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_TAG: ${{ inputs.tag }}
+        RELEASE_COMMIT: ${{ steps.release_source.outputs.commit }}
+        RELEASE_NOTES: |
+          Built and signed by GitHub Actions. Install the APK through the Hammerhead Companion App or ADB. Requires KOS 1.634.2440 or later.
+      run: |
+        python3 - <<'PY'
+        import hashlib, json, os, subprocess
+        from pathlib import Path
+
+        def gh(*args):
+            return subprocess.check_output(['gh', *args], text=True)
+
+        tag = os.environ['RELEASE_TAG']
+        repo = os.environ['GITHUB_REPOSITORY']
+        files = [Path(f'app/build/outputs/apk/release/KarooCueSheetPlus-{tag}-release.apk'),
+                 Path('app/manifest.json'), Path('assets/cuesheet-icon.png')]
+        digests = {path.name: 'sha256:' + hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
+        pages = json.loads(gh('api', '--paginate', '--slurp', f'repos/{repo}/releases'))
+        matches = [release for page in pages for release in page if release['tag_name'] == tag]
+        release = matches[0] if matches else None
+        assets = {asset['name']: asset for asset in release['assets']} if release else {}
+        missing = [path for path in files if path.name not in assets]
+        for path in files:
+            if path.name in assets and assets[path.name].get('digest') != digests[path.name]:
+                raise SystemExit('Existing asset differs from verified build: ' + path.name)
+        if release and not release['draft']:
+            if missing:
+                raise SystemExit('Published release is incomplete; refusing to modify published assets')
+            print('Release already published with matching assets')
+        else:
+            notes = Path(os.environ['RUNNER_TEMP']) / 'cuesheet-release-notes.txt'
+            changes = json.loads(Path('app/manifest.json').read_text())['releaseNotes']
+            notes.write_text(changes + '\n\n' + os.environ['RELEASE_NOTES'])
+            metadata = ['--repo', repo, '--target', os.environ['RELEASE_COMMIT'],
+                        '--title', f'Cue Sheet+ {tag}', '--notes-file', str(notes)]
+            if release:
+                gh('release', 'edit', tag, *metadata)
+            else:
+                gh('release', 'create', tag, '--draft', '--verify-tag', *metadata)
+            if missing:
+                gh('release', 'upload', tag, '--repo', repo, *(str(path) for path in missing))
+            gh('release', 'edit', tag, '--repo', repo, '--draft=false', '--prerelease=false', '--latest')
+            print('Published verified release: ' + tag)
+        PY

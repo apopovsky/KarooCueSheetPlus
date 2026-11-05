@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Cue Sheet+</string>
+    <string name="extension_name">Karoo Cue Sheet+</string>
+
+    <string name="datatype_cuesheet_full_name">Cue Sheet+ (Lista)</string>
+    <string name="datatype_cuesheet_full_desc">Lista completa de Waypoints, POIs, Cimas y Meta con distancia, desnivel y ETA ajustado por terreno y pendiente.</string>
+
+    <string name="datatype_next_waypoint_name">Próximo Waypoint</string>
+    <string name="datatype_next_waypoint_desc">Nombre, categoría, distancia y ETA al próximo Waypoint o POI de la ruta.</string>
+
+    <string name="bonus_scroll_up">Cue Sheet+: Subir lista ▲</string>
+    <string name="bonus_scroll_down">Cue Sheet+: Bajar lista ▼</string>
+    <string name="bonus_close_detail">Cue Sheet+: Cerrar detalle</string>
+</resources>
