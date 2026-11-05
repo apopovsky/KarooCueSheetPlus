@@ -106,12 +106,13 @@ object RouteGeometryEngine {
         routePois: List<RawPoiInput>,
         globalPois: List<RawPoiInput>,
         climbs: List<ClimbSegment>,
-        includeClimbs: Boolean,
-        includeGlobalPois: Boolean,
-        riderDistanceAlongRouteM: Double,
-        rejoinExtraDistanceM: Double,
-        flatSpeedMps: Double,
-        nowEpochMillis: Long,
+        includeClimbs: Boolean = true,
+        includeGlobalPois: Boolean = true,
+        collapseCircuitPois: Boolean = true,
+        riderDistanceAlongRouteM: Double = 0.0,
+        rejoinExtraDistanceM: Double = 0.0,
+        flatSpeedMps: Double = 7.0,
+        nowEpochMillis: Long = System.currentTimeMillis(),
         surface: SurfaceProfile = SurfaceProfile.GRAVEL,
         vamMh: Double? = null,
         climbWheelWkg: Double? = null,
@@ -144,7 +145,18 @@ object RouteGeometryEngine {
                 if (proj != null) listOf(proj.distanceAlongRouteM) else emptyList()
             }
 
-            for ((occIdx, distM) in routeDistances.withIndex()) {
+            // In multi-lap circuits, collapse repeated passes of the same POI to only the nearest upcoming
+            // (and most recent passed) pass so future laps don't flood the cue sheet and hide upcoming distinct waypoints/finish.
+            val relevantDistances = if (collapseCircuitPois && routeDistances.size > 1) {
+                val sortedDists = routeDistances.sorted()
+                val nextUpcoming = sortedDists.firstOrNull { it >= riderDistanceAlongRouteM - PASSED_HYSTERESIS_M }
+                val lastPassed = sortedDists.lastOrNull { it < riderDistanceAlongRouteM - PASSED_HYSTERESIS_M }
+                listOfNotNull(lastPassed, nextUpcoming).distinct()
+            } else {
+                routeDistances
+            }
+
+            for ((occIdx, distM) in relevantDistances.withIndex()) {
                 val clampedDist = distM.coerceIn(0.0, totalDistM)
                 val matchedClimb = climbs.firstOrNull {
                     kotlin.math.abs(it.summitDistanceM - clampedDist) <= CLIMB_SUMMIT_DEDUP_M

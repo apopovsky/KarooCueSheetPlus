@@ -10,6 +10,7 @@ object DemoRouteProvider {
         manualStartIndex: Int?,
         selectedDetailId: String?,
         detailRemainingSeconds: Int,
+        isDetailLocked: Boolean = false,
         simulatedRiderDistM: Double = 6_200.0,
         nowEpochMillis: Long = System.currentTimeMillis(),
         isMetricDistance: Boolean = true,
@@ -133,6 +134,7 @@ object DemoRouteProvider {
             flatSpeedMps = flatMps,
             nowEpochMillis = nowEpochMillis,
             surface = surface,
+            collapseCircuitPois = settings.collapseCircuitPois,
             strings = strings,
         )
 
@@ -151,6 +153,7 @@ object DemoRouteProvider {
             nextPoint = nextPoint,
             selectedDetailPoint = detailPoint,
             detailRemainingSeconds = if (detailPoint != null) detailRemainingSeconds else 0,
+            isDetailLocked = if (detailPoint != null) isDetailLocked else false,
             learnedFlatSpeedKmh = settings.defaultFlatSpeedKmh,
             activeSurface = surface,
             isMetricDistance = isMetricDistance,

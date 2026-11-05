@@ -120,6 +120,9 @@ class RideNavigationRepository private constructor(private val appContext: Conte
     @Volatile
     private var detailExpiresAtMs: Long = 0L
 
+    @Volatile
+    private var isDetailLocked: Boolean = false
+
     // Demo simulation progress (slowly advances so rider can watch POIs transition in Demo Mode)
     private var demoRiderDistanceM: Double = 6_200.0
 
@@ -190,14 +193,28 @@ class RideNavigationRepository private constructor(private val appContext: Conte
         val rows = _snapshot.value.window.rows
         val point = rows.getOrNull(rowIndex) ?: return
         selectedDetailWaypointId = point.id
+        isDetailLocked = false
         val timeoutSec = settingsStore.settings.value.autoReturnSeconds
         detailExpiresAtMs = System.currentTimeMillis() + timeoutSec * 1000L
+        recomputeSnapshot()
+    }
+
+    fun toggleDetailLock() {
+        if (selectedDetailWaypointId == null) return
+        isDetailLocked = !isDetailLocked
+        if (isDetailLocked) {
+            detailExpiresAtMs = Long.MAX_VALUE
+        } else {
+            val timeoutSec = settingsStore.settings.value.autoReturnSeconds
+            detailExpiresAtMs = System.currentTimeMillis() + timeoutSec * 1000L
+        }
         recomputeSnapshot()
     }
 
     fun closeDetail() {
         if (selectedDetailWaypointId != null) {
             selectedDetailWaypointId = null
+            isDetailLocked = false
             detailExpiresAtMs = 0L
             recomputeSnapshot()
         } else if (manualStartIndex != null) {
@@ -224,8 +241,8 @@ class RideNavigationRepository private constructor(private val appContext: Conte
                 }
                 lastPaceSampleMs = now
 
-                // Expire detail modal or manual scroll automatically
-                if (selectedDetailWaypointId != null && now >= detailExpiresAtMs) {
+                // Expire detail modal (unless locked) or manual scroll automatically
+                if (selectedDetailWaypointId != null && !isDetailLocked && now >= detailExpiresAtMs) {
                     selectedDetailWaypointId = null
                     detailExpiresAtMs = 0L
                 }
@@ -243,7 +260,8 @@ class RideNavigationRepository private constructor(private val appContext: Conte
                 }
 
                 recomputeSnapshot()
-                delay(1_000L)
+                val intervalSec = settingsStore.settings.value.refreshIntervalSeconds.coerceIn(1, 30)
+                delay(intervalSec * 1000L)
             }
         }
     }
@@ -469,6 +487,7 @@ class RideNavigationRepository private constructor(private val appContext: Conte
                 manualStartIndex = manualStartIndex,
                 selectedDetailId = selectedDetailWaypointId,
                 detailRemainingSeconds = detailRemSec,
+                isDetailLocked = isDetailLocked,
                 simulatedRiderDistM = demoRiderDistanceM,
                 nowEpochMillis = now,
                 isMetricDistance = isMetricDistance,
@@ -519,6 +538,7 @@ class RideNavigationRepository private constructor(private val appContext: Conte
             climbWheelWkg = flatPaceEstimator.climbWheelWkg,
             descentSkillFactor = flatPaceEstimator.descentSkillFactor,
             riderWeightKg = riderWeightKg,
+            collapseCircuitPois = settings.collapseCircuitPois,
             strings = strings,
         )
 
@@ -537,6 +557,7 @@ class RideNavigationRepository private constructor(private val appContext: Conte
             nextPoint = nextPoint,
             selectedDetailPoint = detailPoint,
             detailRemainingSeconds = if (detailPoint != null) detailRemSec else 0,
+            isDetailLocked = if (detailPoint != null) isDetailLocked else false,
             learnedFlatSpeedKmh = flatPaceEstimator.flatSpeedKmh,
             learnedClimbWkg = flatPaceEstimator.climbWheelWkg,
             learnedVamMh = flatPaceEstimator.vamMh,

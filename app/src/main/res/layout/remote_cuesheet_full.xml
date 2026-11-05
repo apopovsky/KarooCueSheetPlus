@@ -98,13 +98,52 @@
     </LinearLayout>
 
     <!-- Touch hitbox overlay for Detail Mode -->
-    <FrameLayout
-        android:id="@+id/touch_close_detail"
+    <LinearLayout
+        android:id="@+id/overlay_detail_touch"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="?android:attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
+        android:orientation="vertical"
+        android:weightSum="100"
+        android:visibility="gone">
+
+        <!-- Top Header Buttons (Height: 12%) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="12"
+            android:orientation="horizontal"
+            android:weightSum="100">
+
+            <!-- Main Back Button: 80% -->
+            <FrameLayout
+                android:id="@+id/touch_close_detail"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="80"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <!-- Lock Button: 20% -->
+            <FrameLayout
+                android:id="@+id/touch_lock_detail"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="20"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+
+        <!-- Body Area: 88% (Tap to dismiss if not locked) -->
+        <FrameLayout
+            android:id="@+id/touch_detail_body"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="88"
+            android:clickable="true"
+            android:focusable="true" />
+
+    </LinearLayout>
 
 </FrameLayout>

@@ -38,6 +38,7 @@
                 <action android:name="com.karoocuesheetplus.ACTION_SCROLL_DOWN" />
                 <action android:name="com.karoocuesheetplus.ACTION_SELECT_ROW" />
                 <action android:name="com.karoocuesheetplus.ACTION_CLOSE_DETAIL" />
+                <action android:name="com.karoocuesheetplus.ACTION_TOGGLE_DETAIL_LOCK" />
             </intent-filter>
         </receiver>
 

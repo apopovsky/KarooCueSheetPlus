@@ -234,6 +234,97 @@ class CueSheetEngineTest {
         assertTrue(pointsAtStart.all { it.deltaDistanceM >= 0.0 })
     }
 
+    @Test
+    fun `multi-lap circuit POI collapse reduces repeated passes to last passed and next upcoming`() {
+        val pts = listOf(
+            LatLngPoint(-31.4000, -64.1000),
+            LatLngPoint(-31.4500, -64.1500),
+        )
+        val indexed = RouteGeometryEngine.buildIndexedPolyline(pts, declaredRouteDistanceM = 30_000.0)
+        // Simulate a circuit POI (e.g., Agua??) passed 5 times: 2km, 6km, 10km, 14km, 18km
+        val circuitPoi = RawPoiInput(
+            id = "poi_water",
+            lat = -31.4100,
+            lng = -64.1100,
+            type = "water",
+            name = "Agua",
+            distancesAlongRouteM = listOf(2_000.0, 6_000.0, 10_000.0, 14_000.0, 18_000.0),
+            isGlobal = false,
+        )
+        val otherPoi = RawPoiInput(
+            id = "poi_cafe",
+            lat = -31.4400,
+            lng = -64.1400,
+            type = "food",
+            name = "Coffee Stop",
+            distancesAlongRouteM = listOf(22_000.0),
+            isGlobal = false,
+        )
+
+        // Rider is at 8,000m (lap 3: 2km passed, 6km passed; next is 10km; 14km & 18km future)
+        val collapsed = RouteGeometryEngine.buildCuePoints(
+            routeName = "Park Circuit",
+            indexedPolyline = indexed,
+            elevationProfile = emptyList(),
+            routePois = listOf(circuitPoi, otherPoi),
+            globalPois = emptyList(),
+            climbs = emptyList(),
+            riderDistanceAlongRouteM = 8_000.0,
+            collapseCircuitPois = true,
+        )
+
+        // With collapse: circuit POI should only have 2 passes (6km as last passed, 10km as next upcoming) + Coffee + Finish = 4 points total
+        val waterOccurrences = collapsed.filter { it.name == "Agua" }
+        assertEquals(2, waterOccurrences.size)
+        assertTrue(waterOccurrences[0].isPassed)
+        assertEquals(6_000.0, waterOccurrences[0].distanceAlongRouteM, 1.0)
+        assertTrue(waterOccurrences[1].isNextActive)
+        assertEquals(10_000.0, waterOccurrences[1].distanceAlongRouteM, 1.0)
+
+        // And other waypoints are preserved and visible!
+        assertTrue(collapsed.any { it.name == "Coffee Stop" })
+        assertEquals(CueCategory.FINISH, collapsed.last().category)
+
+        // Without collapse: all 5 passes of Agua + Coffee + Finish = 7 points
+        val full = RouteGeometryEngine.buildCuePoints(
+            routeName = "Park Circuit",
+            indexedPolyline = indexed,
+            elevationProfile = emptyList(),
+            routePois = listOf(circuitPoi, otherPoi),
+            globalPois = emptyList(),
+            climbs = emptyList(),
+            riderDistanceAlongRouteM = 8_000.0,
+            collapseCircuitPois = false,
+        )
+        val fullWater = full.filter { it.name == "Agua" }
+        assertEquals(5, fullWater.size)
+    }
+
+    @Test
+    fun `detail locked state is preserved in snapshot`() {
+        val settings = CueSheetSettings()
+        val baseSnap = DemoRouteProvider.buildDemoSnapshot(settings, null, null, 0)
+        val targetId = baseSnap.allPoints.first().id
+
+        val snapUnlocked = DemoRouteProvider.buildDemoSnapshot(
+            settings = settings,
+            manualStartIndex = null,
+            selectedDetailId = targetId,
+            detailRemainingSeconds = 10,
+            isDetailLocked = false,
+        )
+        assertFalse(snapUnlocked.isDetailLocked)
+
+        val snapLocked = DemoRouteProvider.buildDemoSnapshot(
+            settings = settings,
+            manualStartIndex = null,
+            selectedDetailId = targetId,
+            detailRemainingSeconds = 0,
+            isDetailLocked = true,
+        )
+        assertTrue(snapLocked.isDetailLocked)
+    }
+
     private fun assertEquals(expected: Double, actual: Double, delta: Double) {
         org.junit.Assert.assertEquals(expected, actual, delta)
     }

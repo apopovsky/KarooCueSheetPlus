@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
 
     private var previewManualIndex: Int? = 0
     private var previewDetailId: String? = null
+    private var previewDetailLocked: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -134,6 +135,16 @@ class MainActivity : ComponentActivity() {
             settingsStore.update { it.copy(includeGlobalPois = checked) }
         }
 
+        val collapsePoisSwitch = addSwitchRow(
+            parent = configCard,
+            title = if (isEs) "Colapsar waypoints en circuitos" else "Collapse circuit waypoints",
+            subtitle = if (isEs) "En circuitos o pistas, muestra solo el próximo paso y oculta vueltas futuras"
+            else "On multi-lap tracks, shows only the next pass and hides future repeated laps",
+            initial = settingsStore.settings.value.collapseCircuitPois,
+        ) { checked ->
+            settingsStore.update { it.copy(collapseCircuitPois = checked) }
+        }
+
         val demoSwitch = addSwitchRow(
             parent = configCard,
             title = if (isEs) "Modo Simulación (Demo en vivo)" else "Live Demo Mode",
@@ -204,6 +215,24 @@ class MainActivity : ComponentActivity() {
             },
         )
 
+        // Refresh interval seconds row
+        val refreshIntervalValueText = addStepperRow(
+            parent = configCard,
+            title = if (isEs) "Intervalo de actualización" else "Refresh interval",
+            subtitle = if (isEs) "Frecuencia de cálculo en vivo (5s ahorra batería frente a 1s)"
+            else "Live recalculation frequency (5s saves battery compared to 1s)",
+            onMinus = {
+                settingsStore.update { s ->
+                    s.copy(refreshIntervalSeconds = (s.refreshIntervalSeconds - 1).coerceIn(1, 30))
+                }
+            },
+            onPlus = {
+                settingsStore.update { s ->
+                    s.copy(refreshIntervalSeconds = (s.refreshIntervalSeconds + 1).coerceIn(1, 30))
+                }
+            },
+        )
+
         root.addView(configCard)
 
         // Setup instructions card
@@ -241,6 +270,7 @@ class MainActivity : ComponentActivity() {
                 val curEs = curStrings.langCode == "es"
                 if (climbsSwitch.isChecked != s.includeClimbs) climbsSwitch.isChecked = s.includeClimbs
                 if (globalPoisSwitch.isChecked != s.includeGlobalPois) globalPoisSwitch.isChecked = s.includeGlobalPois
+                if (collapsePoisSwitch.isChecked != s.collapseCircuitPois) collapsePoisSwitch.isChecked = s.collapseCircuitPois
                 if (demoSwitch.isChecked != s.demoModeEnabled) demoSwitch.isChecked = s.demoModeEnabled
                 surfaceValueText.text = curStrings.surfaceLabel(s.surfacePreference)
                 themeValueText.text = when (s.themePreference) {
@@ -250,6 +280,7 @@ class MainActivity : ComponentActivity() {
                 }
                 speedValueText.text = String.format(Locale.US, "%d km/h", s.defaultFlatSpeedKmh.roundToInt())
                 timeoutValueText.text = "${s.autoReturnSeconds} s"
+                refreshIntervalValueText.text = "${s.refreshIntervalSeconds} s"
                 refreshInteractivePreview(s)
             }
         }
@@ -266,11 +297,17 @@ class MainActivity : ComponentActivity() {
                     settings = currentSettings,
                     manualStartIndex = previewManualIndex,
                     selectedDetailId = previewDetailId,
-                    detailRemainingSeconds = currentSettings.autoReturnSeconds,
+                    detailRemainingSeconds = if (previewDetailLocked) 0 else currentSettings.autoReturnSeconds,
+                    isDetailLocked = previewDetailLocked,
                 )
 
                 if (previewDetailId != null) {
-                    previewDetailId = null
+                    if (relY <= 0.11f && relX > 0.80f) {
+                        previewDetailLocked = !previewDetailLocked
+                    } else if (relY <= 0.11f || !previewDetailLocked) {
+                        previewDetailId = null
+                        previewDetailLocked = false
+                    }
                 } else if (relY <= 0.11f) {
                     if (relX in 0.55f..0.775f) {
                         previewManualIndex = CueListWindowBuilder.computeNextScrollIndex(
@@ -286,6 +323,7 @@ class MainActivity : ComponentActivity() {
                     val tapped = snap.window.rows.getOrNull(rowIdx)
                     if (tapped != null) {
                         previewDetailId = tapped.id
+                        previewDetailLocked = false
                     }
                 }
                 refreshInteractivePreview(currentSettings)
@@ -299,7 +337,8 @@ class MainActivity : ComponentActivity() {
             settings = settings,
             manualStartIndex = previewManualIndex,
             selectedDetailId = previewDetailId,
-            detailRemainingSeconds = settings.autoReturnSeconds,
+            detailRemainingSeconds = if (previewDetailLocked) 0 else settings.autoReturnSeconds,
+            isDetailLocked = previewDetailLocked,
         )
         val isNight = when (settings.themePreference) {
             ThemePreference.DARK -> true

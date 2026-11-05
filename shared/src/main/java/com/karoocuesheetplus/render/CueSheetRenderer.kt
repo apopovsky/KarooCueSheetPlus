@@ -2,6 +2,7 @@ package com.karoocuesheetplus.render
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
@@ -402,11 +403,17 @@ object CueSheetRenderer {
         snapshot: CueSheetSnapshot,
         p: Palette,
     ) {
-        val padX = w * 0.055f
+        val padX = w * 0.050f
+        val gap = w * 0.025f
+        val topY = h * 0.028f
+        val btnH = h * 0.076f
+        val lockSize = btnH
 
-        // 1. Top "← Volver a la lista (Xs)" pill button
-        val backRect = RectF(padX, h * 0.025f, w - padX, h * 0.098f)
+        // 1. Two Header Buttons: Main Back Button (Left ~82%) and Circular Lock Button (Right ~18%)
+        val lockRect = RectF(w - padX - lockSize, topY, w - padX, topY + btnH)
+        val backRect = RectF(padX, topY, lockRect.left - gap, topY + btnH)
         val backRadius = backRect.height() * 0.5f
+
         val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             color = p.cardBg
@@ -420,79 +427,106 @@ object CueSheetRenderer {
         canvas.drawRoundRect(backRect, backRadius, backRadius, pillBorder)
 
         val s = snapshot.strings
-        val backLabel = s.formatBackToList(snapshot.detailRemainingSeconds)
+        val backLabel = if (snapshot.isDetailLocked) s.backToListPlain else s.formatBackToList(snapshot.detailRemainingSeconds)
         val backTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = boldSans
-            textSize = backRect.height() * 0.42f
+            textSize = backRect.height() * 0.44f
             color = p.textPrimary
             textAlign = Paint.Align.CENTER
         }
         val backBase = backRect.centerY() - (backTextPaint.descent() + backTextPaint.ascent()) * 0.5f
-        canvas.drawText(backLabel, w * 0.5f, backBase, backTextPaint)
+        canvas.drawText(backLabel, backRect.centerX(), backBase, backTextPaint)
 
-        // 2. Category Icon + Title + Subtitle
-        val badgeR = min(w * 0.085f, h * 0.048f)
+        // Draw Right Circular Lock Button (Padlock on/off)
+        val lockRadius = lockSize * 0.5f
+        val lockCx = lockRect.centerX()
+        val lockCy = lockRect.centerY()
+        val isLocked = snapshot.isDetailLocked
+
+        val lockBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = if (isLocked) Color.argb(65, 245, 197, 24) else p.cardBg
+        }
+        val lockBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = if (isLocked) 2.5f else 2f
+            color = if (isLocked) p.accentTime else p.buttonBorder
+        }
+        canvas.drawCircle(lockCx, lockCy, lockRadius, lockBgPaint)
+        canvas.drawCircle(lockCx, lockCy, lockRadius, lockBorderPaint)
+
+        drawPadlockIcon(
+            canvas = canvas,
+            cx = lockCx,
+            cy = lockCy,
+            size = lockSize * 0.50f,
+            isLocked = isLocked,
+            color = if (isLocked) p.accentTime else p.textSecondary,
+        )
+
+        // 2. Category Icon + Title + Subtitle (Larger typography)
+        val badgeR = min(w * 0.088f, h * 0.050f)
         val badgeCy = h * 0.165f
         drawWaypointBadge(canvas, w * 0.5f, badgeCy, badgeR, point.category, point.isPassed, p)
 
         val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = boldSans
-            textSize = h * 0.048f
+            textSize = h * 0.054f
             color = p.textPrimary
             textAlign = Paint.Align.CENTER
         }
         val maxTitleW = w - padX * 2f
         if (titlePaint.measureText(point.name) > maxTitleW) {
-            titlePaint.textSize = h * 0.039f
+            titlePaint.textSize = h * 0.044f
         }
         val titleText = TextUtils.ellipsize(point.name, titlePaint, maxTitleW, TextUtils.TruncateAt.END).toString()
-        canvas.drawText(titleText, w * 0.5f, h * 0.265f, titlePaint)
+        canvas.drawText(titleText, w * 0.5f, h * 0.268f, titlePaint)
 
         val subPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = mediumSans
-            textSize = h * 0.026f
+            textSize = h * 0.030f
             color = p.textMuted
             textAlign = Paint.Align.CENTER
         }
         val subText = TextUtils.ellipsize(point.subtitle, subPaint, maxTitleW, TextUtils.TruncateAt.END).toString()
-        canvas.drawText(subText, w * 0.5f, h * 0.305f, subPaint)
+        canvas.drawText(subText, w * 0.5f, h * 0.310f, subPaint)
 
-        // 3. Massive Hero Distance
+        // 3. Massive Hero Distance (Larger typography)
         val dist = CueFormatter.formatDistance(point.deltaDistanceM, snapshot.isMetricDistance)
         val heroNumPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = boldSans
-            textSize = h * 0.105f
+            textSize = h * 0.116f
             color = p.textPrimary
         }
         val heroUnitPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = boldSans
-            textSize = h * 0.052f
+            textSize = h * 0.058f
             color = p.textSecondary
         }
         val numW = heroNumPaint.measureText(dist.value)
         val unitStr = " ${dist.unit}"
         val unitW = heroUnitPaint.measureText(unitStr)
         val heroStartX = (w - (numW + unitW)) * 0.5f
-        val heroBaseline = h * 0.425f
+        val heroBaseline = h * 0.432f
         canvas.drawText(dist.value, heroStartX, heroBaseline, heroNumPaint)
         canvas.drawText(unitStr, heroStartX + numW, heroBaseline, heroUnitPaint)
 
         val distCaptionPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = boldSans
-            textSize = h * 0.022f
+            textSize = h * 0.025f
             color = p.textSecondary
             letterSpacing = 0.08f
             textAlign = Paint.Align.CENTER
         }
         val caption = if (point.isPassed) s.passedAgoCaption else s.distanceRemainingCaption
-        canvas.drawText(caption, w * 0.5f, h * 0.462f, distCaptionPaint)
+        canvas.drawText(caption, w * 0.5f, h * 0.468f, distCaptionPaint)
 
-        // 4. 2x2 Metric Cards Grid
-        val gridTop = h * 0.495f
-        val gridBottom = h * 0.765f
-        val gap = w * 0.03f
-        val cardW = (w - padX * 2f - gap) * 0.5f
-        val cardH = (gridBottom - gridTop - gap) * 0.5f
+        // 4. 2x2 Metric Cards Grid (Larger typography)
+        val gridTop = h * 0.500f
+        val gridBottom = h * 0.770f
+        val cardGap = w * 0.03f
+        val cardW = (w - padX * 2f - cardGap) * 0.5f
+        val cardH = (gridBottom - gridTop - cardGap) * 0.5f
 
         val etaText = if (point.isPassed) s.cardPassedValue else CueFormatter.formatEtaClock(point.etaEpochMillis, snapshot.is24HourFormat)
         val eteText = if (point.isPassed) s.cardCompletedValue else CueFormatter.formatEte(point.eteSeconds)
@@ -504,21 +538,84 @@ object CueSheetRenderer {
             label = s.cardEtaLabel, value = etaText, valueColor = if (point.isPassed) p.passedGreen else p.accentTime, p = p
         )
         drawMetricCard(
-            canvas, RectF(padX + cardW + gap, gridTop, w - padX, gridTop + cardH),
+            canvas, RectF(padX + cardW + cardGap, gridTop, w - padX, gridTop + cardH),
             label = s.cardEstTimeLabel, value = eteText, valueColor = p.textPrimary, p = p
         )
         drawMetricCard(
-            canvas, RectF(padX, gridTop + cardH + gap, padX + cardW, gridBottom),
+            canvas, RectF(padX, gridTop + cardH + cardGap, padX + cardW, gridBottom),
             label = s.cardAscentLabel, value = ascText, valueColor = p.textPrimary, p = p
         )
         drawMetricCard(
-            canvas, RectF(padX + cardW + gap, gridTop + cardH + gap, w - padX, gridBottom),
+            canvas, RectF(padX + cardW + cardGap, gridTop + cardH + cardGap, w - padX, gridBottom),
             label = s.cardAvgGradeLabel, value = gradeText, valueColor = p.textPrimary, p = p
         )
 
         // 5. Mini Elevation Sparkline at Bottom
-        val sparkRect = RectF(padX, h * 0.80f, w - padX, h * 0.955f)
+        val sparkRect = RectF(padX, h * 0.805f, w - padX, h * 0.960f)
         drawElevationSparkline(canvas, sparkRect, point, p)
+    }
+
+    private fun drawPadlockIcon(
+        canvas: Canvas,
+        cx: Float,
+        cy: Float,
+        size: Float,
+        isLocked: Boolean,
+        color: Int,
+    ) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+        }
+        val bodyW = size * 0.72f
+        val bodyH = size * 0.54f
+        val bodyTop = cy - size * 0.05f
+        val bodyRect = RectF(cx - bodyW * 0.5f, bodyTop, cx + bodyW * 0.5f, bodyTop + bodyH)
+
+        // Lock body
+        paint.style = Paint.Style.FILL
+        canvas.drawRoundRect(bodyRect, 4f, 4f, paint)
+
+        // Keyhole
+        val holePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = if (color == Color.WHITE) Color.BLACK else Color.WHITE
+            style = Paint.Style.FILL
+        }
+        val holeCy = bodyTop + bodyH * 0.45f
+        canvas.drawCircle(cx, holeCy, bodyH * 0.16f, holePaint)
+        canvas.drawRect(cx - 1.5f, holeCy, cx + 1.5f, holeCy + bodyH * 0.30f, holePaint)
+
+        // Shackle (arch)
+        val shacklePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            style = Paint.Style.STROKE
+            strokeWidth = size * 0.12f
+            strokeCap = Paint.Cap.ROUND
+        }
+        val shackleW = bodyW * 0.56f
+        val shackleH = size * 0.42f
+
+        if (isLocked) {
+            val shackleRect = RectF(
+                cx - shackleW * 0.5f,
+                bodyTop - shackleH,
+                cx + shackleW * 0.5f,
+                bodyTop + shackleH * 0.2f
+            )
+            canvas.drawArc(shackleRect, 180f, 180f, false, shacklePaint)
+            canvas.drawLine(cx - shackleW * 0.5f, bodyTop - shackleH * 0.5f, cx - shackleW * 0.5f, bodyTop + 1f, shacklePaint)
+            canvas.drawLine(cx + shackleW * 0.5f, bodyTop - shackleH * 0.5f, cx + shackleW * 0.5f, bodyTop + 1f, shacklePaint)
+        } else {
+            val openLift = size * 0.12f
+            val shackleRect = RectF(
+                cx - shackleW * 0.5f,
+                bodyTop - shackleH - openLift,
+                cx + shackleW * 0.5f,
+                bodyTop + shackleH * 0.2f - openLift
+            )
+            canvas.drawArc(shackleRect, 180f, 180f, false, shacklePaint)
+            canvas.drawLine(cx - shackleW * 0.5f, bodyTop - shackleH * 0.5f - openLift, cx - shackleW * 0.5f, bodyTop + 1f, shacklePaint)
+            canvas.drawLine(cx + shackleW * 0.5f, bodyTop - shackleH * 0.5f - openLift, cx + shackleW * 0.5f, bodyTop - openLift * 0.5f, shacklePaint)
+        }
     }
 
     private fun drawMetricCard(
@@ -547,19 +644,19 @@ object CueSheetRenderer {
 
         val labelPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = boldSans
-            textSize = rect.height() * 0.22f
+            textSize = rect.height() * 0.25f
             color = if (label == "ETA" && valueColor == p.accentTime) p.accentTime else p.textSecondary
             textAlign = Paint.Align.CENTER
         }
         val valPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = boldSans
-            textSize = rect.height() * 0.40f
+            textSize = rect.height() * 0.46f
             color = valueColor
             textAlign = Paint.Align.CENTER
         }
         val maxW = rect.width() * 0.90f
         if (valPaint.measureText(value) > maxW) {
-            valPaint.textSize = rect.height() * 0.32f
+            valPaint.textSize = rect.height() * 0.36f
         }
         canvas.drawText(label, rect.centerX(), rect.top + rect.height() * 0.34f, labelPaint)
         canvas.drawText(value, rect.centerX(), rect.top + rect.height() * 0.78f, valPaint)

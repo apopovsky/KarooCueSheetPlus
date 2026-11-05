@@ -33,6 +33,8 @@ class CueSettingsStore private constructor(context: Context) {
             .putBoolean(KEY_INCLUDE_GLOBAL_POIS, next.includeGlobalPois)
             .putFloat(KEY_DEFAULT_FLAT_SPEED_KMH, next.defaultFlatSpeedKmh.toFloat())
             .putInt(KEY_AUTO_RETURN_SECONDS, next.autoReturnSeconds)
+            .putInt(KEY_REFRESH_INTERVAL_SECONDS, next.refreshIntervalSeconds)
+            .putBoolean(KEY_COLLAPSE_CIRCUIT_POIS, next.collapseCircuitPois)
             .putString(KEY_THEME_PREF, next.themePreference.name)
             .putString(KEY_SURFACE_PREF, next.surfacePreference.name)
             .putBoolean(KEY_DEMO_MODE, next.demoModeEnabled)
@@ -52,6 +54,8 @@ class CueSettingsStore private constructor(context: Context) {
             includeGlobalPois = prefs.getBoolean(KEY_INCLUDE_GLOBAL_POIS, true),
             defaultFlatSpeedKmh = prefs.getFloat(KEY_DEFAULT_FLAT_SPEED_KMH, 25.0f).toDouble().coerceIn(14.0, 42.0),
             autoReturnSeconds = prefs.getInt(KEY_AUTO_RETURN_SECONDS, 10).coerceIn(5, 30),
+            refreshIntervalSeconds = prefs.getInt(KEY_REFRESH_INTERVAL_SECONDS, 5).coerceIn(1, 30),
+            collapseCircuitPois = prefs.getBoolean(KEY_COLLAPSE_CIRCUIT_POIS, true),
             themePreference = theme,
             surfacePreference = surf,
             demoModeEnabled = prefs.getBoolean(KEY_DEMO_MODE, false),
@@ -65,6 +69,8 @@ class CueSettingsStore private constructor(context: Context) {
         private const val KEY_DEFAULT_FLAT_SPEED_KMH = "default_flat_speed_kmh"
         private const val KEY_LEARNED_FLAT_SPEED_KMH = "learned_flat_speed_kmh"
         private const val KEY_AUTO_RETURN_SECONDS = "auto_return_seconds"
+        private const val KEY_REFRESH_INTERVAL_SECONDS = "refresh_interval_seconds"
+        private const val KEY_COLLAPSE_CIRCUIT_POIS = "collapse_circuit_pois"
         private const val KEY_THEME_PREF = "theme_pref"
         private const val KEY_SURFACE_PREF = "surface_pref"
         private const val KEY_DEMO_MODE = "demo_mode"

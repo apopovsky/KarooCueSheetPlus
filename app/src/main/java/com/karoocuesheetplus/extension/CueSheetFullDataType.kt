@@ -96,13 +96,23 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
 
         val isDetailOpen = snapshot.selectedDetailPoint != null
         rv.setViewVisibility(R.id.overlay_list_touch, if (isDetailOpen) View.GONE else View.VISIBLE)
-        rv.setViewVisibility(R.id.touch_close_detail, if (isDetailOpen) View.VISIBLE else View.GONE)
+        rv.setViewVisibility(R.id.overlay_detail_touch, if (isDetailOpen) View.VISIBLE else View.GONE)
 
         if (isDetailOpen) {
             rv.setOnClickPendingIntent(
                 R.id.touch_close_detail,
                 CueSheetActionReceiver.closeDetailPendingIntent(context)
             )
+            rv.setOnClickPendingIntent(
+                R.id.touch_lock_detail,
+                CueSheetActionReceiver.toggleDetailLockPendingIntent(context)
+            )
+            val bodyIntent = if (!snapshot.isDetailLocked) {
+                CueSheetActionReceiver.closeDetailPendingIntent(context)
+            } else {
+                null
+            }
+            rv.setOnClickPendingIntent(R.id.touch_detail_body, bodyIntent)
         } else {
             rv.setOnClickPendingIntent(
                 R.id.touch_scroll_up,
