@@ -1,15 +1,18 @@
 {
   "label": "Cue Sheet+",
   "packageName": "com.karoocuesheetplus",
-  "iconUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.2/cuesheet-icon.png",
-  "latestApkUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.2/KarooCueSheetPlus-v1.0.2-release.apk",
-  "latestVersion": "1.0.2",
-  "latestVersionCode": 3,
+  "iconUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.3/cuesheet-icon.png",
+  "latestApkUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.3/KarooCueSheetPlus-v1.0.3-release.apk",
+  "latestVersion": "1.0.3",
+  "latestVersionCode": 4,
   "developer": "apopovsky",
-  "description": "Full-Page and Single-Field Cue Sheet with gradient-aware ETA, climb integration, and touch details for Hammerhead Karoo 3.",
-  "releaseNotes": "v1.0.2: Added floating exit/back button in Extension Settings screen (matching WPrimeExtension bottom-left docked style).",
+  "description": "Enhanced Garmin-style Course Points & Cue Sheet extension for Hammerhead Karoo 3.\n\n• Full-Page View: 5-row high-contrast list of upcoming Waypoints, POIs, Climbs, and Finish with manual ▲/▼ scrolling.\n• Interactive Detail Card: Tap any row to inspect its elevation sparkline profile, distance to go, ascent/descent, and optional padlock lock.\n• Single-Field Data View: Compact Next Waypoint cell (1-column or wide) with category badge, distance, and live ETA.\n• Terrain & VAM ETA Engine: Auto-detects Road, Gravel, or MTB profile and adapts rolling flat pace and climbing VAM.\n• Smart Route Tools: Climb summit integration, nearby account POIs, multi-lap circuit deduplication, Day/Night themes, and multilingual UI (EN/ES/PT/FR/IT/DE).",
+  "releaseNotes": "v1.0.3: Added MANIFEST_URL metadata so Karoo Extensions displays screenshots, full description, release notes, and automatic OTA update prompts.",
   "screenshotUrls": [
-    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.2/screenshot-cuesheet-list.png",
-    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.2/screenshot-cuesheet-detail.png"
+    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.3/screenshot-cuesheet-list.png",
+    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.3/screenshot-cuesheet-detail.png"
+  ],
+  "tags": [
+    "performance"
   ]
 }

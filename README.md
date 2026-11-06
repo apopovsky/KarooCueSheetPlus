@@ -48,15 +48,14 @@ https://github.com/apopovsky/KarooCueSheetPlus/releases/latest
 
 ### Via Hammerhead Companion App (Recommended)
 
-1. Open the latest release page on your smartphone.
-2. Download or share the `KarooCueSheetPlus-vX.X.X-release.apk` link.
-3. Select **Hammerhead Companion App**.
-4. Confirm installation when prompted on your Karoo 3.
+1. Open the latest release page on your smartphone (or copy `https://github.com/apopovsky/KarooCueSheetPlus/releases/latest/download/manifest.json`).
+2. Share the `manifest.json` URL (or `KarooCueSheetPlus-vX.X.X-release.apk` link) to **Hammerhead Companion App**.
+3. Confirm installation when prompted on your Karoo 3. Future updates can be installed directly from **Extensions** on the Karoo.
 
 ### Via ADB
 
 ```bash
-adb install -r KarooCueSheetPlus-v1.0.2-release.apk
+adb install -r KarooCueSheetPlus-v1.0.3-release.apk
 ```
 
 ---
