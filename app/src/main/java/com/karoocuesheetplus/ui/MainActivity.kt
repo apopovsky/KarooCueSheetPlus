@@ -12,6 +12,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -55,7 +56,7 @@ class MainActivity : ComponentActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = dp(14)
-            setPadding(pad, dp(16), pad, dp(28))
+            setPadding(pad, dp(16), pad, dp(76))
         }
         scroll.addView(root)
 
@@ -262,7 +263,63 @@ class MainActivity : ComponentActivity() {
         })
         root.addView(helpCard)
 
-        setContentView(scroll)
+        // Root container with floating exit/back button (matches WPrimeExtension back FAB)
+        val container = FrameLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#0B0D10"))
+        }
+        container.addView(
+            scroll,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+        )
+
+        val backFab = FrameLayout(this).apply {
+            val fabW = dp(52)
+            val fabH = dp(50)
+            layoutParams = FrameLayout.LayoutParams(fabW, fabH).apply {
+                gravity = Gravity.BOTTOM or Gravity.START
+                bottomMargin = dp(12)
+                leftMargin = 0
+            }
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1E293B"))
+                val r = dp(25).toFloat()
+                cornerRadii = floatArrayOf(
+                    0f, 0f,       // top-left (flat against bezel)
+                    r, r,         // top-right
+                    r, r,         // bottom-right
+                    0f, 0f        // bottom-left (flat against bezel)
+                )
+                setStroke(dp(1), Color.parseColor("#38BDF8"))
+            }
+            isClickable = true
+            isFocusable = true
+            elevation = dp(8).toFloat()
+
+            val arrowView = TextView(context).apply {
+                text = "←"
+                setTextColor(Color.parseColor("#F5C518"))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                ).apply {
+                    rightMargin = dp(4)
+                }
+            }
+            addView(arrowView)
+
+            setOnClickListener {
+                finish()
+            }
+        }
+        container.addView(backFab)
+
+        setContentView(container)
 
         lifecycleScope.launch {
             settingsStore.settings.collect { s ->

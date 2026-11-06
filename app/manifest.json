@@ -1,15 +1,15 @@
 {
   "label": "Cue Sheet+",
   "packageName": "com.karoocuesheetplus",
-  "iconUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.1/cuesheet-icon.png",
-  "latestApkUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.1/KarooCueSheetPlus-v1.0.1-release.apk",
-  "latestVersion": "1.0.1",
-  "latestVersionCode": 2,
+  "iconUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.2/cuesheet-icon.png",
+  "latestApkUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.2/KarooCueSheetPlus-v1.0.2-release.apk",
+  "latestVersion": "1.0.2",
+  "latestVersionCode": 3,
   "developer": "apopovsky",
   "description": "Full-Page and Single-Field Cue Sheet with gradient-aware ETA, climb integration, and touch details for Hammerhead Karoo 3.",
-  "releaseNotes": "v1.0.1: Added waypoint detail padlock lock toggle with persistent modal, configurable refresh interval setting (default 5s for battery savings), and smart circuit/track multi-lap POI deduplication.",
+  "releaseNotes": "v1.0.2: Added floating exit/back button in Extension Settings screen (matching WPrimeExtension bottom-left docked style).",
   "screenshotUrls": [
-    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.1/screenshot-cuesheet-list.png",
-    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.1/screenshot-cuesheet-detail.png"
+    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.2/screenshot-cuesheet-list.png",
+    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.2/screenshot-cuesheet-detail.png"
   ]
 }
