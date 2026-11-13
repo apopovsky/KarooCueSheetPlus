@@ -26,10 +26,19 @@ import kotlin.math.roundToInt
 
 class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID) {
 
+    enum class LayoutMode {
+        FULL_PAGE,
+        HALF_PAGE,
+        SINGLE_WIDE,
+        SINGLE_COMPACT,
+    }
+
     override fun startView(context: Context, config: ViewConfig, emitter: ViewEmitter) {
         emitter.onNext(UpdateGraphicConfig(showHeader = false))
 
-        val (targetW, targetH) = computeRenderDimensions(config.viewSize, defaultW = 480, defaultH = 740)
+        val layoutMode = resolveLayoutMode(config)
+        val (targetW, targetH) = computeRenderDimensions(config.viewSize, layoutMode)
+        val interactive = !config.preview && layoutMode == LayoutMode.FULL_PAGE
 
         if (config.preview) {
             val settings = CueSettingsStore.getInstance(context).settings.value
@@ -39,7 +48,16 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
                 selectedDetailId = null,
                 detailRemainingSeconds = 0,
             )
-            emitter.updateView(buildRemoteViews(context, demoSnap, targetW, targetH))
+            emitter.updateView(
+                buildRemoteViews(
+                    context = context,
+                    snapshot = demoSnap,
+                    widthPx = targetW,
+                    heightPx = targetH,
+                    layoutMode = layoutMode,
+                    interactive = false,
+                )
+            )
             return
         }
 
@@ -49,7 +67,14 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
 
         viewScope.launch {
             repo.snapshot.collect { snap ->
-                val rv = buildRemoteViews(context, snap, targetW, targetH)
+                val rv = buildRemoteViews(
+                    context = context,
+                    snapshot = snap,
+                    widthPx = targetW,
+                    heightPx = targetH,
+                    layoutMode = layoutMode,
+                    interactive = interactive,
+                )
                 emitter.updateView(rv)
             }
         }
@@ -65,19 +90,31 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
         snapshot: CueSheetSnapshot,
         widthPx: Int,
         heightPx: Int,
+        layoutMode: LayoutMode,
+        interactive: Boolean,
     ): RemoteViews {
         return when (snapshot.themePreference) {
-            ThemePreference.DARK -> createSingleThemeRemoteViews(context, snapshot, widthPx, heightPx, isNight = true)
-            ThemePreference.LIGHT -> createSingleThemeRemoteViews(context, snapshot, widthPx, heightPx, isNight = false)
+            ThemePreference.DARK -> createSingleThemeRemoteViews(
+                context, snapshot, widthPx, heightPx, layoutMode, interactive, isNight = true
+            )
+            ThemePreference.LIGHT -> createSingleThemeRemoteViews(
+                context, snapshot, widthPx, heightPx, layoutMode, interactive, isNight = false
+            )
             ThemePreference.AUTO -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val lightRv = createSingleThemeRemoteViews(context, snapshot, widthPx, heightPx, isNight = false)
-                    val darkRv = createSingleThemeRemoteViews(context, snapshot, widthPx, heightPx, isNight = true)
+                    val lightRv = createSingleThemeRemoteViews(
+                        context, snapshot, widthPx, heightPx, layoutMode, interactive, isNight = false
+                    )
+                    val darkRv = createSingleThemeRemoteViews(
+                        context, snapshot, widthPx, heightPx, layoutMode, interactive, isNight = true
+                    )
                     RemoteViews(lightRv, darkRv)
                 } else {
                     val sysNight = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                         Configuration.UI_MODE_NIGHT_YES
-                    createSingleThemeRemoteViews(context, snapshot, widthPx, heightPx, isNight = sysNight)
+                    createSingleThemeRemoteViews(
+                        context, snapshot, widthPx, heightPx, layoutMode, interactive, isNight = sysNight
+                    )
                 }
             }
         }
@@ -88,11 +125,28 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
         snapshot: CueSheetSnapshot,
         widthPx: Int,
         heightPx: Int,
+        layoutMode: LayoutMode,
+        interactive: Boolean,
         isNight: Boolean,
     ): RemoteViews {
         val rv = RemoteViews(context.packageName, R.layout.remote_cuesheet_full)
-        val bmp = CueSheetRenderer.renderFullPage(snapshot, widthPx, heightPx, isNight)
+        val bmp = when (layoutMode) {
+            LayoutMode.FULL_PAGE -> CueSheetRenderer.renderFullPage(snapshot, widthPx, heightPx, isNight)
+            LayoutMode.HALF_PAGE -> CueSheetRenderer.renderHalfPage(snapshot, widthPx, heightPx, isNight)
+            LayoutMode.SINGLE_WIDE -> CueSheetRenderer.renderSingleField(
+                snapshot, widthPx, heightPx, isWideSlot = true, isNightMode = isNight
+            )
+            LayoutMode.SINGLE_COMPACT -> CueSheetRenderer.renderSingleField(
+                snapshot, widthPx, heightPx, isWideSlot = false, isNightMode = isNight
+            )
+        }
         rv.setImageViewBitmap(R.id.img_cuesheet_canvas, bmp)
+
+        if (!interactive) {
+            rv.setViewVisibility(R.id.overlay_list_touch, View.GONE)
+            rv.setViewVisibility(R.id.overlay_detail_touch, View.GONE)
+            return rv
+        }
 
         val isDetailOpen = snapshot.selectedDetailPoint != null
         rv.setViewVisibility(R.id.overlay_list_touch, if (isDetailOpen) View.GONE else View.VISIBLE)
@@ -147,12 +201,41 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
     companion object {
         const val TYPE_ID = "cuesheet-full"
 
-        fun computeRenderDimensions(viewSize: Pair<Int, Int>, defaultW: Int, defaultH: Int): Pair<Int, Int> {
+        fun resolveLayoutMode(config: ViewConfig): LayoutMode {
+            val isFullWidth = config.gridSize.first > 35 ||
+                (config.gridSize.first <= 0 && (config.viewSize.first >= 340 || config.viewSize.first <= 50))
+            if (!isFullWidth) {
+                return LayoutMode.SINGLE_COMPACT
+            }
+
+            val isFullHeight = (config.gridSize.second >= 45 || config.gridSize.second <= 0) &&
+                (config.viewSize.second >= 480 || config.viewSize.second <= 50)
+            if (isFullHeight) {
+                return LayoutMode.FULL_PAGE
+            }
+
+            val hasEnoughPixelHeightForHalf = config.viewSize.second <= 50 || config.viewSize.second >= 220
+            val isHalfHeight = hasEnoughPixelHeightForHalf &&
+                ((config.gridSize.second in 20..44) || (config.viewSize.second in 220..479))
+            if (isHalfHeight) {
+                return LayoutMode.HALF_PAGE
+            }
+
+            return LayoutMode.SINGLE_WIDE
+        }
+
+        fun computeRenderDimensions(viewSize: Pair<Int, Int>, layoutMode: LayoutMode): Pair<Int, Int> {
+            val (defaultW, defaultH) = when (layoutMode) {
+                LayoutMode.FULL_PAGE -> 480 to 740
+                LayoutMode.HALF_PAGE -> 480 to 350
+                LayoutMode.SINGLE_WIDE -> 480 to 155
+                LayoutMode.SINGLE_COMPACT -> 238 to 155
+            }
             val rawW = if (viewSize.first > 50) viewSize.first else defaultW
             val rawH = if (viewSize.second > 50) viewSize.second else defaultH
             // Cap max bitmap dimension to 420x700 to stay ultra-lightweight over RemoteViews IPC while razor sharp on 480x800
             val scale = min(1.0f, min(420f / rawW.toFloat(), 700f / rawH.toFloat()))
-            return Pair((rawW * scale).roundToInt().coerceAtLeast(160), (rawH * scale).roundToInt().coerceAtLeast(160))
+            return Pair((rawW * scale).roundToInt().coerceAtLeast(120), (rawH * scale).roundToInt().coerceAtLeast(70))
         }
     }
 }

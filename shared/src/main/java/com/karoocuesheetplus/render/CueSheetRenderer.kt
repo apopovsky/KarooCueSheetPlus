@@ -13,6 +13,7 @@ import android.text.TextPaint
 import android.text.TextUtils
 import com.karoocuesheetplus.domain.CueCategory
 import com.karoocuesheetplus.domain.CueFormatter
+import com.karoocuesheetplus.domain.CueListWindowBuilder
 import com.karoocuesheetplus.domain.CuePoint
 import com.karoocuesheetplus.domain.CueSheetSnapshot
 import java.util.Locale
@@ -110,6 +111,29 @@ object CueSheetRenderer {
         return bmp
     }
 
+    fun renderHalfPage(
+        snapshot: CueSheetSnapshot,
+        widthPx: Int,
+        heightPx: Int,
+        isNightMode: Boolean,
+    ): Bitmap {
+        val w = widthPx.coerceIn(200, 1080)
+        val h = heightPx.coerceIn(160, 1920)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val p = if (isNightMode) NIGHT_PALETTE else DAY_PALETTE
+
+        canvas.drawColor(p.bg)
+
+        if (!snapshot.hasActiveRoute || snapshot.allPoints.isEmpty()) {
+            drawEmptyFullState(canvas, w.toFloat(), h.toFloat(), snapshot, p)
+            return bmp
+        }
+
+        drawHalfPageListView(canvas, w.toFloat(), h.toFloat(), snapshot, p)
+        return bmp
+    }
+
     fun renderSingleField(
         snapshot: CueSheetSnapshot,
         widthPx: Int,
@@ -204,6 +228,52 @@ object CueSheetRenderer {
 
         // Draw up to 5 rows
         win.rows.take(5).forEachIndexed { idx, point ->
+            val top = headerH + idx * rowH
+            val bottom = top + rowH
+            drawCueRow(canvas, w, top, bottom, point, snapshot, p)
+        }
+    }
+
+    private fun drawHalfPageListView(
+        canvas: Canvas,
+        w: Float,
+        h: Float,
+        snapshot: CueSheetSnapshot,
+        p: Palette,
+    ) {
+        val rowCount = if (h >= 310f) 3 else 2
+        val headerH = h * (if (rowCount == 3) 0.16f else 0.18f)
+        val rowH = (h - headerH) / rowCount.toFloat()
+        val padX = w * 0.035f
+
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+
+        fillPaint.color = p.headerBg
+        canvas.drawRect(0f, 0f, w, headerH, fillPaint)
+
+        val win = CueListWindowBuilder.buildWindow(
+            allPoints = snapshot.allPoints,
+            manualStartIndex = null,
+            maxVisibleRows = rowCount,
+        )
+        val demoTag = if (snapshot.isDemoMode) " • ${snapshot.strings.demoBadge}" else ""
+        val headerTitle = "CUE SHEET+ (${win.activeOrdinal}/${win.totalCount})$demoTag"
+        val headerPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = condensedBold
+            color = p.textPrimary
+            textSize = (headerH * 0.48f).coerceAtLeast(14f)
+        }
+        val titleMaxW = (w - padX * 2f).coerceAtLeast(40f)
+        val clippedHeader = TextUtils.ellipsize(headerTitle, headerPaint, titleMaxW, TextUtils.TruncateAt.END).toString()
+        val headerBaseline = headerH * 0.5f - (headerPaint.descent() + headerPaint.ascent()) * 0.5f
+        canvas.drawText(clippedHeader, padX, headerBaseline, headerPaint)
+
+        strokePaint.color = p.divider
+        strokePaint.strokeWidth = max(1.5f, h * 0.003f)
+        canvas.drawLine(0f, headerH, w, headerH, strokePaint)
+
+        win.rows.take(rowCount).forEachIndexed { idx, point ->
             val top = headerH + idx * rowH
             val bottom = top + rowH
             drawCueRow(canvas, w, top, bottom, point, snapshot, p)
@@ -898,32 +968,36 @@ object CueSheetRenderer {
         p: Palette,
     ) {
         val s = snapshot.strings
-        drawWaypointBadge(canvas, w * 0.5f, h * 0.34f, min(w, h) * 0.10f, CueCategory.GENERIC_WAYPOINT, false, p)
+        val isCompactH = h < 360f
+        val refH = max(h, w * 0.85f)
+        val badgeR = if (isCompactH) min(w, h) * 0.11f else min(w, h) * 0.10f
+        val badgeCy = if (isCompactH) h * 0.28f else h * 0.34f
+        drawWaypointBadge(canvas, w * 0.5f, badgeCy, badgeR, CueCategory.GENERIC_WAYPOINT, false, p)
 
         val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = boldSans
-            textSize = h * 0.045f
+            textSize = (refH * 0.052f).coerceIn(18f, h * 0.12f)
             color = p.textPrimary
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText(s.noActiveRouteTitle, w * 0.5f, h * 0.49f, titlePaint)
+        canvas.drawText(s.noActiveRouteTitle, w * 0.5f, if (isCompactH) h * 0.48f else h * 0.49f, titlePaint)
 
         val subPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = mediumSans
-            textSize = h * 0.026f
+            textSize = (refH * 0.032f).coerceIn(13f, h * 0.075f)
             color = p.textSecondary
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText(s.noActiveRouteLine1, w * 0.5f, h * 0.55f, subPaint)
-        canvas.drawText(s.noActiveRouteLine2, w * 0.5f, h * 0.59f, subPaint)
+        canvas.drawText(s.noActiveRouteLine1, w * 0.5f, if (isCompactH) h * 0.58f else h * 0.55f, subPaint)
+        canvas.drawText(s.noActiveRouteLine2, w * 0.5f, if (isCompactH) h * 0.66f else h * 0.59f, subPaint)
 
         val pacePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = boldSans
-            textSize = h * 0.025f
+            textSize = (refH * 0.030f).coerceIn(12f, h * 0.070f)
             color = p.accentTime
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText(s.formatBaseFlatPace(snapshot.learnedFlatSpeedKmh), w * 0.5f, h * 0.68f, pacePaint)
+        canvas.drawText(s.formatBaseFlatPace(snapshot.learnedFlatSpeedKmh), w * 0.5f, if (isCompactH) h * 0.78f else h * 0.68f, pacePaint)
     }
 
     private fun drawEmptySingleState(

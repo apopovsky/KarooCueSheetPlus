@@ -145,7 +145,7 @@ object DemoRouteProvider {
         return CueSheetSnapshot(
             routeName = demoRouteTitle,
             hasActiveRoute = true,
-            isDemoMode = true,
+            isDemoMode = false,
             riderDistanceAlongRouteM = simulatedRiderDistM,
             totalRouteDistanceM = totalDistM,
             allPoints = allPoints,

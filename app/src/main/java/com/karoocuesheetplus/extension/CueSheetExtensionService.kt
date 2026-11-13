@@ -26,6 +26,6 @@ class CueSheetExtensionService : KarooExtension(EXTENSION_ID, EXTENSION_VERSION)
 
     companion object {
         const val EXTENSION_ID = "karoo-cuesheet-plus"
-        const val EXTENSION_VERSION = "1.0.3"
+        const val EXTENSION_VERSION = "1.0.4"
     }
 }

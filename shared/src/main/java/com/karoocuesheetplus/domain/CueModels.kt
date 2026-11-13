@@ -255,7 +255,6 @@ data class CueSheetSettings(
     val collapseCircuitPois: Boolean = true,
     val themePreference: ThemePreference = ThemePreference.AUTO,
     val surfacePreference: SurfacePreference = SurfacePreference.AUTO,
-    val demoModeEnabled: Boolean = false,
 )
 
 data class CueSheetSnapshot(

@@ -146,16 +146,6 @@ class MainActivity : ComponentActivity() {
             settingsStore.update { it.copy(collapseCircuitPois = checked) }
         }
 
-        val demoSwitch = addSwitchRow(
-            parent = configCard,
-            title = if (isEs) "Modo Simulación (Demo en vivo)" else "Live Demo Mode",
-            subtitle = if (isEs) "Simula una ruta con puertos en tus pantallas de datos para probar sin GPS"
-            else "Simulate an active mountain route on your data pages without GPS",
-            initial = settingsStore.settings.value.demoModeEnabled,
-        ) { checked ->
-            settingsStore.update { it.copy(demoModeEnabled = checked) }
-        }
-
         // Surface / Bike profile row (Auto by default!)
         val surfaceValueText = addStepperRow(
             parent = configCard,
@@ -328,7 +318,6 @@ class MainActivity : ComponentActivity() {
                 if (climbsSwitch.isChecked != s.includeClimbs) climbsSwitch.isChecked = s.includeClimbs
                 if (globalPoisSwitch.isChecked != s.includeGlobalPois) globalPoisSwitch.isChecked = s.includeGlobalPois
                 if (collapsePoisSwitch.isChecked != s.collapseCircuitPois) collapsePoisSwitch.isChecked = s.collapseCircuitPois
-                if (demoSwitch.isChecked != s.demoModeEnabled) demoSwitch.isChecked = s.demoModeEnabled
                 surfaceValueText.text = curStrings.surfaceLabel(s.surfacePreference)
                 themeValueText.text = when (s.themePreference) {
                     ThemePreference.AUTO -> "Auto"

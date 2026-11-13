@@ -6,7 +6,6 @@ import com.karoocuesheetplus.domain.ClimbSegment
 import com.karoocuesheetplus.domain.CueListWindowBuilder
 import com.karoocuesheetplus.domain.CueSheetSnapshot
 import com.karoocuesheetplus.domain.CueStrings
-import com.karoocuesheetplus.domain.DemoRouteProvider
 import com.karoocuesheetplus.domain.ElevationSample
 import com.karoocuesheetplus.domain.GradientEtaCalculator
 import com.karoocuesheetplus.domain.LatLngPoint
@@ -122,9 +121,6 @@ class RideNavigationRepository private constructor(private val appContext: Conte
 
     @Volatile
     private var isDetailLocked: Boolean = false
-
-    // Demo simulation progress (slowly advances so rider can watch POIs transition in Demo Mode)
-    private var demoRiderDistanceM: Double = 6_200.0
 
     private val _snapshot = MutableStateFlow(CueSheetSnapshot())
     val snapshot: StateFlow<CueSheetSnapshot> = _snapshot.asStateFlow()
@@ -249,14 +245,6 @@ class RideNavigationRepository private constructor(private val appContext: Conte
                 if (manualStartIndex != null && now >= manualScrollExpiresAtMs) {
                     manualStartIndex = null
                     manualScrollExpiresAtMs = 0L
-                }
-
-                // Advance demo simulation slightly (~35 m/sec in demo so testing feels alive)
-                if (settingsStore.settings.value.demoModeEnabled) {
-                    demoRiderDistanceM += 18.0
-                    if (demoRiderDistanceM > 43_500.0) {
-                        demoRiderDistanceM = 1_500.0
-                    }
                 }
 
                 recomputeSnapshot()
@@ -479,22 +467,6 @@ class RideNavigationRepository private constructor(private val appContext: Conte
             ceil((detailExpiresAtMs - now) / 1000.0).toInt().coerceAtLeast(1)
         } else {
             0
-        }
-
-        if (settings.demoModeEnabled) {
-            _snapshot.value = DemoRouteProvider.buildDemoSnapshot(
-                settings = settings,
-                manualStartIndex = manualStartIndex,
-                selectedDetailId = selectedDetailWaypointId,
-                detailRemainingSeconds = detailRemSec,
-                isDetailLocked = isDetailLocked,
-                simulatedRiderDistM = demoRiderDistanceM,
-                nowEpochMillis = now,
-                isMetricDistance = isMetricDistance,
-                isMetricElevation = isMetricElevation,
-                is24HourFormat = is24h,
-            )
-            return
         }
 
         val route = cachedRoute

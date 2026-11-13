@@ -132,7 +132,7 @@ class CueSheetEngineTest {
 
     @Test
     fun `window builder marks passed POIs pins finish and supports up-down scrolling`() {
-        val settings = CueSheetSettings(includeClimbs = true, demoModeEnabled = true)
+        val settings = CueSheetSettings(includeClimbs = true)
         val autoSnap = DemoRouteProvider.buildDemoSnapshot(
             settings = settings,
             manualStartIndex = null,
@@ -323,6 +323,32 @@ class CueSheetEngineTest {
             isDetailLocked = true,
         )
         assertTrue(snapLocked.isDetailLocked)
+    }
+
+    @Test
+    fun `window builder adapts row count for half-page 2-row and 3-row layouts`() {
+        val settings = CueSheetSettings(includeClimbs = true)
+        val baseSnap = DemoRouteProvider.buildDemoSnapshot(
+            settings = settings,
+            manualStartIndex = null,
+            selectedDetailId = null,
+            detailRemainingSeconds = 0,
+            simulatedRiderDistM = 6_200.0,
+            strings = CueStrings.ES,
+        )
+
+        val win3 = CueListWindowBuilder.buildWindow(baseSnap.allPoints, manualStartIndex = null, maxVisibleRows = 3)
+        assertEquals(3, win3.rows.size)
+        assertEquals("Puesto Agua", win3.rows[0].name)
+        assertTrue(win3.rows[0].isNextActive)
+        assertEquals(CueCategory.FINISH, win3.rows[2].category)
+        assertTrue(win3.rows[2].isPinnedFinish)
+
+        val win2 = CueListWindowBuilder.buildWindow(baseSnap.allPoints, manualStartIndex = null, maxVisibleRows = 2)
+        assertEquals(2, win2.rows.size)
+        assertEquals("Puesto Agua", win2.rows[0].name)
+        assertTrue(win2.rows[0].isNextActive)
+        assertFalse(win2.rows[1].isPinnedFinish)
     }
 
     private fun assertEquals(expected: Double, actual: Double, delta: Double) {

@@ -37,7 +37,6 @@ class CueSettingsStore private constructor(context: Context) {
             .putBoolean(KEY_COLLAPSE_CIRCUIT_POIS, next.collapseCircuitPois)
             .putString(KEY_THEME_PREF, next.themePreference.name)
             .putString(KEY_SURFACE_PREF, next.surfacePreference.name)
-            .putBoolean(KEY_DEMO_MODE, next.demoModeEnabled)
             .apply()
         _settings.value = next
     }
@@ -58,7 +57,6 @@ class CueSettingsStore private constructor(context: Context) {
             collapseCircuitPois = prefs.getBoolean(KEY_COLLAPSE_CIRCUIT_POIS, true),
             themePreference = theme,
             surfacePreference = surf,
-            demoModeEnabled = prefs.getBoolean(KEY_DEMO_MODE, false),
         )
     }
 
@@ -73,7 +71,6 @@ class CueSettingsStore private constructor(context: Context) {
         private const val KEY_COLLAPSE_CIRCUIT_POIS = "collapse_circuit_pois"
         private const val KEY_THEME_PREF = "theme_pref"
         private const val KEY_SURFACE_PREF = "surface_pref"
-        private const val KEY_DEMO_MODE = "demo_mode"
 
         @Volatile
         private var instance: CueSettingsStore? = null
