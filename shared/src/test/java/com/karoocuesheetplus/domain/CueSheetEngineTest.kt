@@ -351,6 +351,39 @@ class CueSheetEngineTest {
         assertFalse(win2.rows[1].isPinnedFinish)
     }
 
+    @Test
+    fun `time formatter supports ETA plus ETE, hours and minutes, and minutes only`() {
+        val twoHoursFifteenMinSec = (2 * 60 + 15) * 60L // 8100s
+        val fortyTwoMinSec = 42 * 60L
+        val etaMillis = 1_762_344_000_000L
+
+        assertEquals("135m", CueFormatter.formatEteMinutesOnly(twoHoursFifteenMinSec))
+        assertEquals("42m", CueFormatter.formatEteMinutesOnly(fortyTwoMinSec))
+        assertEquals("--", CueFormatter.formatEteMinutesOnly(null))
+
+        assertEquals("2h 15m", CueFormatter.formatEteByMode(twoHoursFifteenMinSec, TimeDisplayMode.ETA_AND_ETE))
+        assertEquals("2h 15m", CueFormatter.formatEteByMode(twoHoursFifteenMinSec, TimeDisplayMode.ETE_HOURS_MINUTES))
+        assertEquals("135m", CueFormatter.formatEteByMode(twoHoursFifteenMinSec, TimeDisplayMode.ETE_MINUTES_ONLY))
+
+        val expectedClock = CueFormatter.formatEtaClock(etaMillis, is24Hour = true)
+        assertEquals(
+            "$expectedClock (2h 15m)",
+            CueFormatter.formatRowTime(etaMillis, twoHoursFifteenMinSec, is24Hour = true, mode = TimeDisplayMode.ETA_AND_ETE),
+        )
+        assertEquals(
+            "2h 15m",
+            CueFormatter.formatRowTime(etaMillis, twoHoursFifteenMinSec, is24Hour = true, mode = TimeDisplayMode.ETE_HOURS_MINUTES),
+        )
+        assertEquals(
+            "135m",
+            CueFormatter.formatRowTime(etaMillis, twoHoursFifteenMinSec, is24Hour = true, mode = TimeDisplayMode.ETE_MINUTES_ONLY),
+        )
+        assertEquals(
+            "--",
+            CueFormatter.formatRowTime(null, null, is24Hour = true, mode = TimeDisplayMode.ETE_MINUTES_ONLY),
+        )
+    }
+
     private fun assertEquals(expected: Double, actual: Double, delta: Double) {
         org.junit.Assert.assertEquals(expected, actual, delta)
     }

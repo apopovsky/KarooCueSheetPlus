@@ -27,6 +27,7 @@ import com.karoocuesheetplus.domain.CueStrings
 import com.karoocuesheetplus.domain.DemoRouteProvider
 import com.karoocuesheetplus.domain.SurfacePreference
 import com.karoocuesheetplus.domain.ThemePreference
+import com.karoocuesheetplus.domain.TimeDisplayMode
 import com.karoocuesheetplus.render.CueSheetRenderer
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -166,6 +167,18 @@ class MainActivity : ComponentActivity() {
             else "Auto follows Karoo OS Day/Night profile setting",
             onMinus = { cycleTheme(-1) },
             onPlus = { cycleTheme(+1) },
+            minusLabel = "◀",
+            plusLabel = "▶",
+        )
+
+        // Time / ETA format selector row
+        val timeModeValueText = addStepperRow(
+            parent = configCard,
+            title = if (isEs) "Formato de tiempo / ETA" else "Time / ETA format",
+            subtitle = if (isEs) "Hora + tiempo, o solo tiempo restante en letra más grande (h/m o min)"
+            else "Clock ETA + time, or larger time remaining only (h/m or min)",
+            onMinus = { cycleTimeDisplayMode(-1) },
+            onPlus = { cycleTimeDisplayMode(+1) },
             minusLabel = "◀",
             plusLabel = "▶",
         )
@@ -324,6 +337,7 @@ class MainActivity : ComponentActivity() {
                     ThemePreference.DARK -> if (curEs) "Noche" else "Night"
                     ThemePreference.LIGHT -> if (curEs) "Día" else "Day"
                 }
+                timeModeValueText.text = curStrings.timeDisplayModeLabel(s.timeDisplayMode)
                 speedValueText.text = String.format(Locale.US, "%d km/h", s.defaultFlatSpeedKmh.roundToInt())
                 timeoutValueText.text = "${s.autoReturnSeconds} s"
                 refreshIntervalValueText.text = "${s.refreshIntervalSeconds} s"
@@ -391,7 +405,7 @@ class MainActivity : ComponentActivity() {
             ThemePreference.LIGHT -> false
             ThemePreference.AUTO -> {
                 val nightMask = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                nightMask != Configuration.UI_MODE_NIGHT_NO
+                nightMask == Configuration.UI_MODE_NIGHT_YES
             }
         }
         previewFullImage.setImageBitmap(CueSheetRenderer.renderFullPage(snap, 420, 680, isNight))
@@ -403,6 +417,14 @@ class MainActivity : ComponentActivity() {
         settingsStore.update { s ->
             val nextIdx = (s.themePreference.ordinal + delta + values.size) % values.size
             s.copy(themePreference = values[nextIdx])
+        }
+    }
+
+    private fun cycleTimeDisplayMode(delta: Int) {
+        val values = TimeDisplayMode.entries
+        settingsStore.update { s ->
+            val nextIdx = (s.timeDisplayMode.ordinal + delta + values.size) % values.size
+            s.copy(timeDisplayMode = values[nextIdx])
         }
     }
 

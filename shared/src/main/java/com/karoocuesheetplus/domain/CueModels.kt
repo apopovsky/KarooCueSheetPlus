@@ -246,6 +246,12 @@ enum class ThemePreference {
     LIGHT,
 }
 
+enum class TimeDisplayMode {
+    ETA_AND_ETE,
+    ETE_HOURS_MINUTES,
+    ETE_MINUTES_ONLY,
+}
+
 data class CueSheetSettings(
     val includeClimbs: Boolean = true,
     val includeGlobalPois: Boolean = true,
@@ -255,6 +261,7 @@ data class CueSheetSettings(
     val collapseCircuitPois: Boolean = true,
     val themePreference: ThemePreference = ThemePreference.AUTO,
     val surfacePreference: SurfacePreference = SurfacePreference.AUTO,
+    val timeDisplayMode: TimeDisplayMode = TimeDisplayMode.ETA_AND_ETE,
 )
 
 data class CueSheetSnapshot(
@@ -277,5 +284,7 @@ data class CueSheetSnapshot(
     val isMetricElevation: Boolean = true,
     val is24HourFormat: Boolean = true,
     val themePreference: ThemePreference = ThemePreference.AUTO,
+    val timeDisplayMode: TimeDisplayMode = TimeDisplayMode.ETA_AND_ETE,
+    val isSystemNightMode: Boolean = true,
     val strings: CueStrings = CueStrings.forLocale(),
 )

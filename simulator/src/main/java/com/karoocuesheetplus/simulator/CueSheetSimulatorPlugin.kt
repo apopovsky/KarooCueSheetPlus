@@ -67,6 +67,7 @@ import com.karoocuesheetplus.domain.ParsedGpxRoute
 import com.karoocuesheetplus.domain.RouteGeometryEngine
 import com.karoocuesheetplus.domain.SurfaceProfile
 import com.karoocuesheetplus.domain.ThemePreference
+import com.karoocuesheetplus.domain.TimeDisplayMode
 import com.karoocuesheetplus.render.CueSheetRenderer
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -93,6 +94,7 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
 
     private var isNightMode by mutableStateOf(true)
     private var includeClimbs by mutableStateOf(true)
+    private var timeDisplayMode by mutableStateOf(TimeDisplayMode.ETA_AND_ETE)
 
     private var manualStartIndex: Int? = null
     private var selectedDetailId: String? = null
@@ -354,6 +356,7 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
             isMetricElevation = true,
             is24HourFormat = true,
             themePreference = if (isNightMode) ThemePreference.DARK else ThemePreference.LIGHT,
+            timeDisplayMode = timeDisplayMode,
             strings = strings,
         )
     }
@@ -539,6 +542,25 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                val entries = TimeDisplayMode.entries
+                                timeDisplayMode = entries[(timeDisplayMode.ordinal + 1) % entries.size]
+                                refreshUiWithoutAdvancingRider()
+                            },
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                            modifier = Modifier.height(30.dp),
+                        ) {
+                            Text(
+                                text = when (timeDisplayMode) {
+                                    TimeDisplayMode.ETA_AND_ETE -> "⏱ ETA+T"
+                                    TimeDisplayMode.ETE_HOURS_MINUTES -> "⏱ h:m"
+                                    TimeDisplayMode.ETE_MINUTES_ONLY -> "⏱ min"
+                                },
+                                fontSize = 11.sp,
+                                color = Color(0xFFF5C518),
+                            )
+                        }
                         OutlinedButton(
                             onClick = {
                                 isNightMode = !isNightMode

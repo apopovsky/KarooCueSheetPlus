@@ -2,6 +2,8 @@ package com.karoocuesheetplus.extension
 
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
@@ -102,22 +104,46 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
             )
             ThemePreference.AUTO -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val lightRv = createSingleThemeRemoteViews(
-                        context, snapshot, widthPx, heightPx, layoutMode, interactive, isNight = false
+                    val rv = RemoteViews(context.packageName, R.layout.remote_cuesheet_full)
+                    val lightBmp = renderBitmap(snapshot, widthPx, heightPx, layoutMode, isNight = false)
+                    val darkBmp = renderBitmap(snapshot, widthPx, heightPx, layoutMode, isNight = true)
+                    rv.setIcon(
+                        R.id.img_cuesheet_canvas,
+                        "setImageIcon",
+                        Icon.createWithBitmap(lightBmp),
+                        Icon.createWithBitmap(darkBmp),
                     )
-                    val darkRv = createSingleThemeRemoteViews(
-                        context, snapshot, widthPx, heightPx, layoutMode, interactive, isNight = true
-                    )
-                    RemoteViews(lightRv, darkRv)
+                    bindTouchOverlays(context, rv, snapshot, interactive)
+                    rv
                 } else {
-                    val sysNight = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-                        Configuration.UI_MODE_NIGHT_YES
+                    val sysNight = when (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
+                        Configuration.UI_MODE_NIGHT_YES -> true
+                        Configuration.UI_MODE_NIGHT_NO -> false
+                        else -> snapshot.isSystemNightMode
+                    }
                     createSingleThemeRemoteViews(
                         context, snapshot, widthPx, heightPx, layoutMode, interactive, isNight = sysNight
                     )
                 }
             }
         }
+    }
+
+    private fun renderBitmap(
+        snapshot: CueSheetSnapshot,
+        widthPx: Int,
+        heightPx: Int,
+        layoutMode: LayoutMode,
+        isNight: Boolean,
+    ): Bitmap = when (layoutMode) {
+        LayoutMode.FULL_PAGE -> CueSheetRenderer.renderFullPage(snapshot, widthPx, heightPx, isNight)
+        LayoutMode.HALF_PAGE -> CueSheetRenderer.renderHalfPage(snapshot, widthPx, heightPx, isNight)
+        LayoutMode.SINGLE_WIDE -> CueSheetRenderer.renderSingleField(
+            snapshot, widthPx, heightPx, isWideSlot = true, isNightMode = isNight
+        )
+        LayoutMode.SINGLE_COMPACT -> CueSheetRenderer.renderSingleField(
+            snapshot, widthPx, heightPx, isWideSlot = false, isNightMode = isNight
+        )
     }
 
     private fun createSingleThemeRemoteViews(
@@ -130,22 +156,22 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
         isNight: Boolean,
     ): RemoteViews {
         val rv = RemoteViews(context.packageName, R.layout.remote_cuesheet_full)
-        val bmp = when (layoutMode) {
-            LayoutMode.FULL_PAGE -> CueSheetRenderer.renderFullPage(snapshot, widthPx, heightPx, isNight)
-            LayoutMode.HALF_PAGE -> CueSheetRenderer.renderHalfPage(snapshot, widthPx, heightPx, isNight)
-            LayoutMode.SINGLE_WIDE -> CueSheetRenderer.renderSingleField(
-                snapshot, widthPx, heightPx, isWideSlot = true, isNightMode = isNight
-            )
-            LayoutMode.SINGLE_COMPACT -> CueSheetRenderer.renderSingleField(
-                snapshot, widthPx, heightPx, isWideSlot = false, isNightMode = isNight
-            )
-        }
+        val bmp = renderBitmap(snapshot, widthPx, heightPx, layoutMode, isNight)
         rv.setImageViewBitmap(R.id.img_cuesheet_canvas, bmp)
+        bindTouchOverlays(context, rv, snapshot, interactive)
+        return rv
+    }
 
+    private fun bindTouchOverlays(
+        context: Context,
+        rv: RemoteViews,
+        snapshot: CueSheetSnapshot,
+        interactive: Boolean,
+    ) {
         if (!interactive) {
             rv.setViewVisibility(R.id.overlay_list_touch, View.GONE)
             rv.setViewVisibility(R.id.overlay_detail_touch, View.GONE)
-            return rv
+            return
         }
 
         val isDetailOpen = snapshot.selectedDetailPoint != null
@@ -195,7 +221,6 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
                 }
             }
         }
-        return rv
     }
 
     companion object {

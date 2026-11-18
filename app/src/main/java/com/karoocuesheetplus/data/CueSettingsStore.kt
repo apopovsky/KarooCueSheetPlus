@@ -4,6 +4,7 @@ import android.content.Context
 import com.karoocuesheetplus.domain.CueSheetSettings
 import com.karoocuesheetplus.domain.SurfacePreference
 import com.karoocuesheetplus.domain.ThemePreference
+import com.karoocuesheetplus.domain.TimeDisplayMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +38,7 @@ class CueSettingsStore private constructor(context: Context) {
             .putBoolean(KEY_COLLAPSE_CIRCUIT_POIS, next.collapseCircuitPois)
             .putString(KEY_THEME_PREF, next.themePreference.name)
             .putString(KEY_SURFACE_PREF, next.surfacePreference.name)
+            .putString(KEY_TIME_DISPLAY_MODE, next.timeDisplayMode.name)
             .apply()
         _settings.value = next
     }
@@ -48,6 +50,9 @@ class CueSettingsStore private constructor(context: Context) {
         val surfStr = prefs.getString(KEY_SURFACE_PREF, SurfacePreference.AUTO.name)
         val surf = runCatching { SurfacePreference.valueOf(surfStr ?: SurfacePreference.AUTO.name) }
             .getOrDefault(SurfacePreference.AUTO)
+        val timeModeStr = prefs.getString(KEY_TIME_DISPLAY_MODE, TimeDisplayMode.ETA_AND_ETE.name)
+        val timeMode = runCatching { TimeDisplayMode.valueOf(timeModeStr ?: TimeDisplayMode.ETA_AND_ETE.name) }
+            .getOrDefault(TimeDisplayMode.ETA_AND_ETE)
         return CueSheetSettings(
             includeClimbs = prefs.getBoolean(KEY_INCLUDE_CLIMBS, true),
             includeGlobalPois = prefs.getBoolean(KEY_INCLUDE_GLOBAL_POIS, true),
@@ -57,6 +62,7 @@ class CueSettingsStore private constructor(context: Context) {
             collapseCircuitPois = prefs.getBoolean(KEY_COLLAPSE_CIRCUIT_POIS, true),
             themePreference = theme,
             surfacePreference = surf,
+            timeDisplayMode = timeMode,
         )
     }
 
@@ -71,6 +77,7 @@ class CueSettingsStore private constructor(context: Context) {
         private const val KEY_COLLAPSE_CIRCUIT_POIS = "collapse_circuit_pois"
         private const val KEY_THEME_PREF = "theme_pref"
         private const val KEY_SURFACE_PREF = "surface_pref"
+        private const val KEY_TIME_DISPLAY_MODE = "time_display_mode"
 
         @Volatile
         private var instance: CueSettingsStore? = null

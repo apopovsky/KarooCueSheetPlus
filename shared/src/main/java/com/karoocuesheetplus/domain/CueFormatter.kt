@@ -88,6 +88,21 @@ object CueFormatter {
         }
     }
 
+    fun formatEteMinutesOnly(eteSeconds: Long?): String {
+        if (eteSeconds == null) return "--"
+        val totalMinutes = ((eteSeconds + 30L) / 60L).coerceAtLeast(1L)
+        return "${totalMinutes}m"
+    }
+
+    fun formatEteByMode(
+        eteSeconds: Long?,
+        mode: TimeDisplayMode = TimeDisplayMode.ETA_AND_ETE,
+    ): String = when (mode) {
+        TimeDisplayMode.ETE_MINUTES_ONLY -> formatEteMinutesOnly(eteSeconds)
+        TimeDisplayMode.ETA_AND_ETE,
+        TimeDisplayMode.ETE_HOURS_MINUTES -> formatEte(eteSeconds)
+    }
+
     fun formatEtaClock(etaEpochMillis: Long?, is24Hour: Boolean): String {
         if (etaEpochMillis == null) return "--:--"
         val pattern = if (is24Hour) "HH:mm" else "h:mm a"
@@ -97,5 +112,16 @@ object CueFormatter {
     fun formatCombinedEtaAndEte(etaEpochMillis: Long?, eteSeconds: Long?, is24Hour: Boolean): String {
         if (etaEpochMillis == null || eteSeconds == null) return "--:--"
         return "${formatEtaClock(etaEpochMillis, is24Hour)} (${formatEte(eteSeconds)})"
+    }
+
+    fun formatRowTime(
+        etaEpochMillis: Long?,
+        eteSeconds: Long?,
+        is24Hour: Boolean,
+        mode: TimeDisplayMode = TimeDisplayMode.ETA_AND_ETE,
+    ): String = when (mode) {
+        TimeDisplayMode.ETA_AND_ETE -> formatCombinedEtaAndEte(etaEpochMillis, eteSeconds, is24Hour)
+        TimeDisplayMode.ETE_HOURS_MINUTES -> formatEte(eteSeconds)
+        TimeDisplayMode.ETE_MINUTES_ONLY -> formatEteMinutesOnly(eteSeconds)
     }
 }

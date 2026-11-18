@@ -16,6 +16,7 @@ import com.karoocuesheetplus.domain.CueFormatter
 import com.karoocuesheetplus.domain.CueListWindowBuilder
 import com.karoocuesheetplus.domain.CuePoint
 import com.karoocuesheetplus.domain.CueSheetSnapshot
+import com.karoocuesheetplus.domain.TimeDisplayMode
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
@@ -392,30 +393,38 @@ object CueSheetRenderer {
             color = if (point.isPassed) p.textMuted else p.textPrimary
             textAlign = Paint.Align.RIGHT
         }
+        val isEteOnlyMode = snapshot.timeDisplayMode != TimeDisplayMode.ETA_AND_ETE
+        val showLargerEte = isEteOnlyMode && !point.isPassed
+
         val unitText = " ${distFormatted.unit}"
         val unitW = unitPaint.measureText(unitText)
-        val distBaseline = top + rowH * 0.45f
+        val distBaseline = top + rowH * (if (showLargerEte) 0.42f else 0.45f)
         canvas.drawText(unitText, rightEdge, distBaseline, unitPaint)
         canvas.drawText(distFormatted.value, rightEdge - unitW, distBaseline, distNumPaint)
 
-        // Right secondary text (ETA + ETE or "✓ Done" / "✓ Completado")
+        // Right secondary text (ETA + ETE, ETE only, or "✓ Done" / "✓ Completado")
         val s = snapshot.strings
         val subRightText = if (point.isPassed) {
             s.completedRowRight
         } else {
-            CueFormatter.formatCombinedEtaAndEte(point.etaEpochMillis, point.eteSeconds, snapshot.is24HourFormat)
+            CueFormatter.formatRowTime(
+                etaEpochMillis = point.etaEpochMillis,
+                eteSeconds = point.eteSeconds,
+                is24Hour = snapshot.is24HourFormat,
+                mode = snapshot.timeDisplayMode,
+            )
         }
         val subRightPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = if (point.isNextActive || point.isPassed) boldSans else mediumSans
-            textSize = rowH * 0.215f
+            typeface = if (point.isNextActive || point.isPassed || showLargerEte) boldSans else mediumSans
+            textSize = rowH * (if (showLargerEte) 0.30f else 0.215f)
             color = when {
                 point.isPassed -> p.passedGreen
-                point.isNextActive -> p.accentTime
+                point.isNextActive || (showLargerEte && point.category == CueCategory.FINISH) -> p.accentTime
                 else -> p.textSecondary
             }
             textAlign = Paint.Align.RIGHT
         }
-        val subBaseline = top + rowH * 0.78f
+        val subBaseline = top + rowH * (if (showLargerEte) 0.82f else 0.78f)
         canvas.drawText(subRightText, rightEdge, subBaseline, subRightPaint)
 
         // Measure occupied right width so left name never overlaps right numbers
@@ -599,7 +608,7 @@ object CueSheetRenderer {
         val cardH = (gridBottom - gridTop - cardGap) * 0.5f
 
         val etaText = if (point.isPassed) s.cardPassedValue else CueFormatter.formatEtaClock(point.etaEpochMillis, snapshot.is24HourFormat)
-        val eteText = if (point.isPassed) s.cardCompletedValue else CueFormatter.formatEte(point.eteSeconds)
+        val eteText = if (point.isPassed) s.cardCompletedValue else CueFormatter.formatEteByMode(point.eteSeconds, snapshot.timeDisplayMode)
         val ascText = CueFormatter.formatAscentCardValue(point.ascentFromRiderM, snapshot.isMetricElevation)
         val gradeText = String.format(Locale.US, "%.1f%%", point.averageGradePct)
 
@@ -844,14 +853,20 @@ object CueSheetRenderer {
         val hdrBase = headerH * 0.5f - (hdrPaint.descent() + hdrPaint.ascent()) * 0.5f
         canvas.drawText(s.nextWaypointHeader, padX, hdrBase, hdrPaint)
 
-        val etaClock = CueFormatter.formatEtaClock(point.etaEpochMillis, snapshot.is24HourFormat)
+        val isEteOnlyMode = snapshot.timeDisplayMode != TimeDisplayMode.ETA_AND_ETE
+        val hdrRightText = if (isEteOnlyMode) {
+            CueFormatter.formatEteByMode(point.eteSeconds, snapshot.timeDisplayMode)
+        } else {
+            "ETA ${CueFormatter.formatEtaClock(point.etaEpochMillis, snapshot.is24HourFormat)}"
+        }
         val etaHdrPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = boldSans
-            textSize = headerH * 0.58f
+            textSize = headerH * (if (isEteOnlyMode) 0.64f else 0.58f)
             color = if (p.isNight) p.accentTime else p.textPrimary
             textAlign = Paint.Align.RIGHT
         }
-        canvas.drawText("ETA $etaClock", w - padX, hdrBase, etaHdrPaint)
+        val etaHdrBase = headerH * 0.5f - (etaHdrPaint.descent() + etaHdrPaint.ascent()) * 0.5f
+        canvas.drawText(hdrRightText, w - padX, etaHdrBase, etaHdrPaint)
 
         // Body area
         val bodyTop = headerH

@@ -2,6 +2,7 @@ package com.karoocuesheetplus.extension
 
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.widget.RemoteViews
 import com.karoocuesheetplus.R
@@ -85,12 +86,22 @@ class NextWaypointDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
             ThemePreference.LIGHT -> createSingleThemeRv(context, snapshot, widthPx, heightPx, isWideSlot, isNight = false)
             ThemePreference.AUTO -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val light = createSingleThemeRv(context, snapshot, widthPx, heightPx, isWideSlot, isNight = false)
-                    val dark = createSingleThemeRv(context, snapshot, widthPx, heightPx, isWideSlot, isNight = true)
-                    RemoteViews(light, dark)
+                    val rv = RemoteViews(context.packageName, R.layout.remote_next_waypoint)
+                    val lightBmp = CueSheetRenderer.renderSingleField(snapshot, widthPx, heightPx, isWideSlot, isNightMode = false)
+                    val darkBmp = CueSheetRenderer.renderSingleField(snapshot, widthPx, heightPx, isWideSlot, isNightMode = true)
+                    rv.setIcon(
+                        R.id.img_next_waypoint_canvas,
+                        "setImageIcon",
+                        Icon.createWithBitmap(lightBmp),
+                        Icon.createWithBitmap(darkBmp),
+                    )
+                    rv
                 } else {
-                    val sysNight = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-                        Configuration.UI_MODE_NIGHT_YES
+                    val sysNight = when (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
+                        Configuration.UI_MODE_NIGHT_YES -> true
+                        Configuration.UI_MODE_NIGHT_NO -> false
+                        else -> snapshot.isSystemNightMode
+                    }
                     createSingleThemeRv(context, snapshot, widthPx, heightPx, isWideSlot, isNight = sysNight)
                 }
             }

@@ -1,6 +1,8 @@
 package com.karoocuesheetplus.data
 
+import android.app.UiModeManager
 import android.content.Context
+import android.content.res.Configuration
 import android.text.format.DateFormat
 import com.karoocuesheetplus.domain.ClimbSegment
 import com.karoocuesheetplus.domain.CueListWindowBuilder
@@ -122,6 +124,9 @@ class RideNavigationRepository private constructor(private val appContext: Conte
     @Volatile
     private var isDetailLocked: Boolean = false
 
+    @Volatile
+    private var isSystemNightMode: Boolean = isContextNightMode()
+
     private val _snapshot = MutableStateFlow(CueSheetSnapshot())
     val snapshot: StateFlow<CueSheetSnapshot> = _snapshot.asStateFlow()
 
@@ -133,6 +138,19 @@ class RideNavigationRepository private constructor(private val appContext: Conte
                 flatPaceEstimator.resetSeedKmh(newSettings.defaultFlatSpeedKmh)
                 recomputeSnapshot()
             }
+        }
+    }
+
+    fun onConfigurationChanged(newConfig: Configuration) {
+        isSystemNightMode = isContextNightMode(newConfig)
+        recomputeSnapshot()
+    }
+
+    private fun isContextNightMode(config: Configuration = appContext.resources.configuration): Boolean {
+        return when (config.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
+            Configuration.UI_MODE_NIGHT_YES -> true
+            Configuration.UI_MODE_NIGHT_NO -> false
+            else -> (appContext.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager)?.nightMode == UiModeManager.MODE_NIGHT_YES
         }
     }
 
@@ -472,6 +490,7 @@ class RideNavigationRepository private constructor(private val appContext: Conte
         val route = cachedRoute
         val activeSurface = settings.surfacePreference.resolve(detectedKarooSurface)
         val strings = CueStrings.forLocale()
+        isSystemNightMode = isContextNightMode()
         if (route == null || route.indexedPolyline.totalDistanceM <= 1.0) {
             _snapshot.value = CueSheetSnapshot(
                 hasActiveRoute = false,
@@ -484,6 +503,8 @@ class RideNavigationRepository private constructor(private val appContext: Conte
                 isMetricElevation = isMetricElevation,
                 is24HourFormat = is24h,
                 themePreference = settings.themePreference,
+                timeDisplayMode = settings.timeDisplayMode,
+                isSystemNightMode = isSystemNightMode,
                 strings = strings,
             )
             return
@@ -538,6 +559,8 @@ class RideNavigationRepository private constructor(private val appContext: Conte
             isMetricElevation = isMetricElevation,
             is24HourFormat = is24h,
             themePreference = settings.themePreference,
+            timeDisplayMode = settings.timeDisplayMode,
+            isSystemNightMode = isSystemNightMode,
             strings = strings,
         )
     }

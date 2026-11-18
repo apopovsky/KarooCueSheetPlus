@@ -1,5 +1,6 @@
 package com.karoocuesheetplus.extension
 
+import android.content.res.Configuration
 import com.karoocuesheetplus.data.RideNavigationRepository
 import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.extension.KarooExtension
@@ -12,6 +13,11 @@ class CueSheetExtensionService : KarooExtension(EXTENSION_ID, EXTENSION_VERSION)
             CueSheetFullDataType(extension),
             NextWaypointDataType(extension),
         )
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        RideNavigationRepository.getInstance(this).onConfigurationChanged(newConfig)
     }
 
     override fun onBonusAction(actionId: String) {

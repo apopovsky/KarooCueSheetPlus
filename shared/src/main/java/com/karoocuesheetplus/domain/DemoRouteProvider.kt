@@ -160,6 +160,7 @@ object DemoRouteProvider {
             isMetricElevation = isMetricElevation,
             is24HourFormat = is24HourFormat,
             themePreference = settings.themePreference,
+            timeDisplayMode = settings.timeDisplayMode,
             strings = strings,
         )
     }

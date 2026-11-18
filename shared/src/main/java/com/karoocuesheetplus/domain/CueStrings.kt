@@ -54,6 +54,10 @@ data class CueStrings(
     val surfaceGravel: String,
     val surfaceMtb: String,
     val surfaceMtbTech: String,
+    // Time Display Modes
+    val timeModeEtaAndEte: String,
+    val timeModeHoursMinutes: String,
+    val timeModeMinutesOnly: String,
 ) {
     fun formatClimbTitle(indexOneBased: Int): String =
         String.format(Locale.US, climbTitleFormat, indexOneBased)
@@ -86,6 +90,12 @@ data class CueStrings(
         SurfaceProfile.GRAVEL -> surfaceGravel
         SurfaceProfile.MTB -> surfaceMtb
         SurfaceProfile.MTB_TECHNICAL -> surfaceMtbTech
+    }
+
+    fun timeDisplayModeLabel(mode: TimeDisplayMode): String = when (mode) {
+        TimeDisplayMode.ETA_AND_ETE -> timeModeEtaAndEte
+        TimeDisplayMode.ETE_HOURS_MINUTES -> timeModeHoursMinutes
+        TimeDisplayMode.ETE_MINUTES_ONLY -> timeModeMinutesOnly
     }
 
     companion object {
@@ -134,6 +144,9 @@ data class CueStrings(
             surfaceGravel = "Gravel",
             surfaceMtb = "MTB / XC",
             surfaceMtbTech = "MTB Mud/Tech",
+            timeModeEtaAndEte = "ETA + Time",
+            timeModeHoursMinutes = "Hours & Min (2h 15m)",
+            timeModeMinutesOnly = "Minutes Only (135m)",
         )
 
         val ES = CueStrings(
@@ -181,6 +194,9 @@ data class CueStrings(
             surfaceGravel = "Gravel",
             surfaceMtb = "MTB / Ripio",
             surfaceMtbTech = "MTB Barro/Técnico",
+            timeModeEtaAndEte = "Hora + Tiempo",
+            timeModeHoursMinutes = "Horas y Min (2h 15m)",
+            timeModeMinutesOnly = "Solo Minutos (135m)",
         )
 
         val PT = EN.copy(
@@ -222,6 +238,9 @@ data class CueStrings(
             surfaceRoad = "Estrada",
             surfaceMtb = "MTB / Terra",
             surfaceMtbTech = "MTB Lama/Técnico",
+            timeModeEtaAndEte = "Hora + Tempo",
+            timeModeHoursMinutes = "Horas e Min (2h 15m)",
+            timeModeMinutesOnly = "Só Minutos (135m)",
         )
 
         val FR = EN.copy(
@@ -255,6 +274,9 @@ data class CueStrings(
             noActiveRouteLine2 = "les POIs, cols et l'ETA.",
             baseFlatPaceFormat = "Allure plat : %.1f km/h",
             noRouteShort = "Sans route",
+            timeModeEtaAndEte = "ETA + Temps",
+            timeModeHoursMinutes = "Heures & Min (2h 15m)",
+            timeModeMinutesOnly = "Minutes seules (135m)",
         )
 
         val IT = EN.copy(
@@ -288,6 +310,9 @@ data class CueStrings(
             noActiveRouteLine2 = "POI, salite, dislivello ed ETA.",
             baseFlatPaceFormat = "Ritmo pianura: %.1f km/h",
             noRouteShort = "No percorso",
+            timeModeEtaAndEte = "ETA + Tempo",
+            timeModeHoursMinutes = "Ore e Min (2h 15m)",
+            timeModeMinutesOnly = "Solo Minuti (135m)",
         )
 
         val DE = EN.copy(
@@ -321,6 +346,9 @@ data class CueStrings(
             noActiveRouteLine2 = "Anstiege, Höhenmeter & ETA.",
             baseFlatPaceFormat = "Flachtempo: %.1f km/h",
             noRouteShort = "Keine Route",
+            timeModeEtaAndEte = "ETA + Zeit",
+            timeModeHoursMinutes = "Std. & Min. (2h 15m)",
+            timeModeMinutesOnly = "Nur Minuten (135m)",
         )
 
         fun forLocale(locale: Locale = Locale.getDefault()): CueStrings {
