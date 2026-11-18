@@ -17,9 +17,15 @@ Designed to bring the Garmin Course Points list experience to Karoo with clean h
 </p>
 
 <p align="center">
-  <img src="assets/screenshot-cuesheet-list.png" width="48%" alt="Full-Page Cue Sheet View"/>
+  <img src="assets/screenshot-cuesheet-list.png" width="32%" alt="Full-Page Cue Sheet View"/>
   &nbsp;
-  <img src="assets/screenshot-cuesheet-detail.png" width="48%" alt="Waypoint Detail with Elevation Sparkline"/>
+  <img src="assets/screenshot-cuesheet-filter.png" width="32%" alt="Interactive Route POI Category Filter"/>
+  &nbsp;
+  <img src="assets/screenshot-cuesheet-detail.png" width="32%" alt="Waypoint Detail with Elevation Sparkline"/>
+</p>
+
+<p align="center">
+  <img src="assets/screenshot-eta-formats.png" width="760" alt="ETA and Remaining Time Formats Comparison"/>
 </p>
 
 ---
@@ -27,11 +33,15 @@ Designed to bring the Garmin Course Points list experience to Karoo with clean h
 ## Features
 
 - **Full-Page View (480×800):**
-  - High-visibility 5-row window with large typography.
+  - High-visibility 5-row window with large typography and a centered POI counter.
   - Auto-follows your ride progression, showing upcoming Waypoints, POIs, and Summits while cleanly marking passed points.
   - Auto-pins the route Finish point at the bottom row.
+  - **Interactive POI Category Filter:** Tap the top-left filter button to toggle categories present on the current route (e.g. show only Water / Rest Stops while keeping Finish).
   - Supports manual scrolling (touch ▲ / ▼ buttons) with auto-return timeout.
   - Interactive touch on any row displays a full-screen Detail Card with an elevation sparkline profile, distance to go, elevation gain/loss, and gradient-aware ETA.
+- **Configurable Time / ETA Formats & Auto Day/Night Theme:**
+  - Switch between **ETA + Time** (`10:41 (16m)`), **Hours & Min** (`1h 36m`), or **Minutes Only** (`96m`) — the remaining-time-only modes render in a larger bold font for instant legibility.
+  - Automatically switches between Light and Dark themes following Karoo OS Day/Night mode (or force Day/Night manually).
 - **Adaptive Shared-Page Rendering:**
   - **Half-Page View (full width):** Automatically switches to a simplified 2–3 row layout with larger, legible typography when sharing a data page.
   - **Compact / Single-Field Fallback:** Narrow or single-row cells automatically fall back to the compact Next Waypoint layout.
