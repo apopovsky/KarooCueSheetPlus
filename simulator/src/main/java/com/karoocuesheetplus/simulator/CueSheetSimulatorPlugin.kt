@@ -57,6 +57,7 @@ import com.itl.karoo.simulator.KarooSimulatorPlugin
 import com.itl.karoo.simulator.SimulatorController
 import com.itl.karoo.simulator.SimulatorRideState
 import com.itl.karoo.simulator.SimulatorState
+import com.karoocuesheetplus.domain.CueCategory
 import com.karoocuesheetplus.domain.CueFormatter
 import com.karoocuesheetplus.domain.CueListWindowBuilder
 import com.karoocuesheetplus.domain.CueSheetSnapshot
@@ -99,6 +100,9 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
     private var manualStartIndex: Int? = null
     private var selectedDetailId: String? = null
     private var detailRemainingSec by mutableIntStateOf(0)
+    private var disabledCategories by mutableStateOf<Set<CueCategory>>(emptySet())
+    private var isFilterOpen by mutableStateOf(false)
+    private var filterScrollIndex by mutableIntStateOf(0)
 
     private var lastSimulatedElapsedSec: Long = 0L
     private var lastAppliedPowerWatts: Double = 200.0
@@ -151,6 +155,8 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
         manualStartIndex = null
         selectedDetailId = null
         detailRemainingSec = 0
+        isFilterOpen = false
+        filterScrollIndex = 0
         lastAppliedPowerWatts = powerWatts
         // Seed initial prior strictly from the active SurfaceProfile (never jumping on instantaneous power changes!)
         flatPaceEstimator.updateContext(simSurface)
@@ -162,42 +168,84 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
     private fun handleTouchCommand(cmd: String) {
         val snap = snapshotState
         when {
-            cmd == "scroll_up" -> {
+            cmd == "toggle_filter" -> {
                 selectedDetailId = null
                 detailRemainingSec = 0
-                manualStartIndex = CueListWindowBuilder.computeNextScrollIndex(
-                    allPoints = snap.allPoints,
-                    currentManualStartIndex = manualStartIndex,
-                    delta = -1,
-                )
+                if (isFilterOpen) {
+                    isFilterOpen = false
+                    filterScrollIndex = 0
+                } else if (snap.availableCategories.isNotEmpty()) {
+                    isFilterOpen = true
+                    filterScrollIndex = 0
+                }
+                controllerRef?.logEvent(if (isFilterOpen) "Filter ON" else "Filter OFF")
+            }
+            cmd == "scroll_up" -> {
+                if (isFilterOpen && snap.availableCategories.isNotEmpty()) {
+                    val maxStart = (snap.availableCategories.size - 5).coerceAtLeast(0)
+                    filterScrollIndex = (filterScrollIndex - 1).coerceIn(0, maxStart)
+                } else {
+                    selectedDetailId = null
+                    detailRemainingSec = 0
+                    manualStartIndex = CueListWindowBuilder.computeNextScrollIndex(
+                        allPoints = snap.allPoints,
+                        currentManualStartIndex = manualStartIndex,
+                        delta = -1,
+                    )
+                }
                 controllerRef?.logEvent("Touch ▲")
             }
             cmd == "scroll_down" -> {
-                selectedDetailId = null
-                detailRemainingSec = 0
-                manualStartIndex = CueListWindowBuilder.computeNextScrollIndex(
-                    allPoints = snap.allPoints,
-                    currentManualStartIndex = manualStartIndex,
-                    delta = +1,
-                )
+                if (isFilterOpen && snap.availableCategories.isNotEmpty()) {
+                    val maxStart = (snap.availableCategories.size - 5).coerceAtLeast(0)
+                    filterScrollIndex = (filterScrollIndex + 1).coerceIn(0, maxStart)
+                } else {
+                    selectedDetailId = null
+                    detailRemainingSec = 0
+                    manualStartIndex = CueListWindowBuilder.computeNextScrollIndex(
+                        allPoints = snap.allPoints,
+                        currentManualStartIndex = manualStartIndex,
+                        delta = +1,
+                    )
+                }
                 controllerRef?.logEvent("Touch ▼")
             }
             cmd == "reset_scroll" -> {
-                manualStartIndex = null
-                selectedDetailId = null
-                detailRemainingSec = 0
+                if (isFilterOpen) {
+                    isFilterOpen = false
+                    filterScrollIndex = 0
+                } else {
+                    manualStartIndex = null
+                    selectedDetailId = null
+                    detailRemainingSec = 0
+                }
             }
             cmd == "close_detail" -> {
+                isFilterOpen = false
+                filterScrollIndex = 0
                 selectedDetailId = null
                 detailRemainingSec = 0
                 controllerRef?.logEvent("Touch ←")
             }
             cmd.startsWith("row_") -> {
                 val idx = cmd.removePrefix("row_").toIntOrNull() ?: return
-                val tapped = snap.window.rows.getOrNull(idx) ?: return
-                selectedDetailId = tapped.id
-                detailRemainingSec = 10
-                controllerRef?.logEvent("Detail: ${tapped.name}")
+                if (isFilterOpen && snap.availableCategories.isNotEmpty()) {
+                    val maxStart = (snap.availableCategories.size - 5).coerceAtLeast(0)
+                    val effectiveStart = filterScrollIndex.coerceIn(0, maxStart)
+                    val item = snap.availableCategories.getOrNull(effectiveStart + idx) ?: return
+                    disabledCategories = if (item.category in disabledCategories) {
+                        disabledCategories - item.category
+                    } else {
+                        disabledCategories + item.category
+                    }
+                    manualStartIndex = null
+                    controllerRef?.logEvent("Filter: ${item.category.localizedLabel(snap.strings)}")
+                } else {
+                    val tapped = snap.window.rows.getOrNull(idx) ?: return
+                    selectedDetailId = tapped.id
+                    detailRemainingSec = 10
+                    controllerRef?.logEvent("Detail: ${tapped.name}")
+                }
             }
         }
         refreshUiWithoutAdvancingRider()
@@ -274,6 +322,8 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
         manualStartIndex = null
         selectedDetailId = null
         detailRemainingSec = 0
+        isFilterOpen = false
+        filterScrollIndex = 0
         flatPaceEstimator.updateContext(simSurface)
         flatPaceEstimator.resetSeedKmh(simSurface.defaultFlatSeedKmh)
         loadedRoute?.let { updateTerrainTelemetry(it, 0.0, lastAppliedPowerWatts) }
@@ -308,6 +358,26 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
         }
 
         val simNowMs = BASE_SIM_EPOCH_MS + simElapsedSec * 1_000L
+        val availableCategories = RouteGeometryEngine.extractAvailableCategories(
+            indexedPolyline = route.indexedPolyline,
+            routePois = route.routePois,
+            globalPois = emptyList(),
+            climbs = route.climbs,
+            includeClimbs = includeClimbs,
+            includeGlobalPois = false,
+            collapseCircuitPois = true,
+            riderDistanceAlongRouteM = riderDistanceM,
+            disabledCategories = disabledCategories,
+            strings = strings,
+        )
+        if (isFilterOpen && availableCategories.isEmpty()) {
+            isFilterOpen = false
+            filterScrollIndex = 0
+        } else {
+            val maxFilterStart = (availableCategories.size - 5).coerceAtLeast(0)
+            filterScrollIndex = filterScrollIndex.coerceIn(0, maxFilterStart)
+        }
+
         val allPoints = RouteGeometryEngine.buildCuePoints(
             routeName = route.routeName,
             indexedPolyline = route.indexedPolyline,
@@ -326,6 +396,7 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
             climbWheelWkg = flatPaceEstimator.climbWheelWkg,
             descentSkillFactor = flatPaceEstimator.descentSkillFactor,
             riderWeightKg = flatPaceEstimator.riderWeightKg,
+            disabledCategories = disabledCategories,
             strings = strings,
         )
 
@@ -357,6 +428,9 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
             is24HourFormat = true,
             themePreference = if (isNightMode) ThemePreference.DARK else ThemePreference.LIGHT,
             timeDisplayMode = timeDisplayMode,
+            availableCategories = availableCategories,
+            isFilterOpen = isFilterOpen,
+            filterScrollIndex = filterScrollIndex,
             strings = strings,
         )
     }
@@ -398,7 +472,8 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
 
             // Interactive touch hitboxes in Full-Page mode
             if (isFullScreen && snap.hasActiveRoute) {
-                if (snap.selectedDetailPoint != null) {
+                val isFilterActive = snap.isFilterOpen && snap.availableCategories.isNotEmpty()
+                if (!isFilterActive && snap.selectedDetailPoint != null) {
                     val closeAction = actionRunCallback<CueSheetTouchAction>(
                         parameters = actionParametersOf(CueTouchKeys.Command to "close_detail")
                     )
@@ -410,7 +485,8 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
                 } else {
                     val headerH = (heightDp.value * 0.10f).dp
                     val rowH = (heightDp.value * 0.18f).dp
-                    val titleW = (widthDp.value * 0.56f).dp
+                    val filterBtnW = (widthDp.value * 0.24f).dp
+                    val centerW = (widthDp.value * 0.32f).dp
                     val btnW = (widthDp.value * 0.22f).dp
 
                     GlanceColumn(modifier = GlanceModifier.fillMaxSize()) {
@@ -421,11 +497,23 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
                         ) {
                             Box(
                                 modifier = GlanceModifier
-                                    .width(titleW)
+                                    .width(filterBtnW)
                                     .fillMaxHeight()
                                     .clickable(
                                         actionRunCallback<CueSheetTouchAction>(
-                                            actionParametersOf(CueTouchKeys.Command to "reset_scroll")
+                                            actionParametersOf(CueTouchKeys.Command to "toggle_filter")
+                                        )
+                                    )
+                            ) {}
+                            Box(
+                                modifier = GlanceModifier
+                                    .width(centerW)
+                                    .fillMaxHeight()
+                                    .clickable(
+                                        actionRunCallback<CueSheetTouchAction>(
+                                            actionParametersOf(
+                                                CueTouchKeys.Command to if (isFilterActive) "toggle_filter" else "reset_scroll"
+                                            )
                                         )
                                     )
                             ) {}
@@ -451,7 +539,13 @@ class CueSheetSimulatorPlugin : KarooSimulatorPlugin {
                             ) {}
                         }
 
-                        val rowCount = snap.window.rows.size.coerceAtMost(5)
+                        val rowCount = if (isFilterActive) {
+                            val maxStart = (snap.availableCategories.size - 5).coerceAtLeast(0)
+                            val start = snap.filterScrollIndex.coerceIn(0, maxStart)
+                            (snap.availableCategories.size - start).coerceIn(0, 5)
+                        } else {
+                            snap.window.rows.size.coerceAtMost(5)
+                        }
                         for (rowIdx in 0 until rowCount) {
                             Box(
                                 modifier = GlanceModifier

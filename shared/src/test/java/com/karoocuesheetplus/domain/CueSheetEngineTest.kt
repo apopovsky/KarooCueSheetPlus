@@ -384,6 +384,66 @@ class CueSheetEngineTest {
         )
     }
 
+    @Test
+    fun `extractAvailableCategories lists only route-present categories and category filtering keeps finish`() {
+        val pts = listOf(
+            LatLngPoint(-31.4000, -64.1000),
+            LatLngPoint(-31.4500, -64.1500),
+        )
+        val indexed = RouteGeometryEngine.buildIndexedPolyline(pts, declaredRouteDistanceM = 30_000.0)
+        val routePois = listOf(
+            RawPoiInput("p_water", -31.4100, -64.1100, "water", "Water Stop", listOf(5_000.0), false),
+            RawPoiInput("p_rest", -31.4200, -64.1200, "rest_stop", "Rest Stop A", listOf(10_000.0), false),
+            RawPoiInput("p_caution", -31.4300, -64.1300, "caution", "Sharp Turn", listOf(15_000.0), false),
+            RawPoiInput("p_summit", -31.4400, -64.1400, "summit", "Ridge Pass", listOf(20_000.0), false),
+        )
+
+        val categories = RouteGeometryEngine.extractAvailableCategories(
+            indexedPolyline = indexed,
+            routePois = routePois,
+            globalPois = emptyList(),
+            climbs = emptyList(),
+            includeClimbs = false,
+            includeGlobalPois = false,
+            disabledCategories = setOf(CueCategory.DANGER_CAUTION, CueCategory.SUMMIT_CLIMB),
+            strings = CueStrings.EN,
+        )
+
+        // Only the 4 categories present on this route should appear (never FINISH or unused types like BIKE_SERVICE)
+        assertEquals(
+            listOf(CueCategory.WATER, CueCategory.SUMMIT_CLIMB, CueCategory.DANGER_CAUTION, CueCategory.REST_CAMPING),
+            categories.map { it.category },
+        )
+        assertTrue(categories.first { it.category == CueCategory.WATER }.isEnabled)
+        assertTrue(categories.first { it.category == CueCategory.REST_CAMPING }.isEnabled)
+        assertFalse(categories.first { it.category == CueCategory.DANGER_CAUTION }.isEnabled)
+        assertFalse(categories.first { it.category == CueCategory.SUMMIT_CLIMB }.isEnabled)
+
+        // Filtering out everything except REST_CAMPING keeps only Rest Stop A + Finish
+        val disabledExceptRest = categories
+            .map { it.category }
+            .filter { it != CueCategory.REST_CAMPING }
+            .toSet()
+
+        val filteredPoints = RouteGeometryEngine.buildCuePoints(
+            routeName = "Gran Fondo",
+            indexedPolyline = indexed,
+            elevationProfile = emptyList(),
+            routePois = routePois,
+            globalPois = emptyList(),
+            climbs = emptyList(),
+            includeClimbs = false,
+            includeGlobalPois = false,
+            disabledCategories = disabledExceptRest,
+            strings = CueStrings.EN,
+        )
+
+        assertEquals(2, filteredPoints.size)
+        assertEquals("Rest Stop A", filteredPoints[0].name)
+        assertEquals(CueCategory.REST_CAMPING, filteredPoints[0].category)
+        assertEquals(CueCategory.FINISH, filteredPoints[1].category)
+    }
+
     private fun assertEquals(expected: Double, actual: Double, delta: Double) {
         org.junit.Assert.assertEquals(expected, actual, delta)
     }

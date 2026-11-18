@@ -12,6 +12,7 @@ import android.graphics.Typeface
 import android.text.TextPaint
 import android.text.TextUtils
 import com.karoocuesheetplus.domain.CueCategory
+import com.karoocuesheetplus.domain.CueCategoryItem
 import com.karoocuesheetplus.domain.CueFormatter
 import com.karoocuesheetplus.domain.CueListWindowBuilder
 import com.karoocuesheetplus.domain.CuePoint
@@ -103,11 +104,15 @@ object CueSheetRenderer {
             return bmp
         }
 
-        val detail = snapshot.selectedDetailPoint
-        if (detail != null) {
-            drawDetailView(canvas, w.toFloat(), h.toFloat(), detail, snapshot, p)
+        if (snapshot.isFilterOpen && snapshot.availableCategories.isNotEmpty()) {
+            drawFilterView(canvas, w.toFloat(), h.toFloat(), snapshot, p)
         } else {
-            drawListView(canvas, w.toFloat(), h.toFloat(), snapshot, p)
+            val detail = snapshot.selectedDetailPoint
+            if (detail != null) {
+                drawDetailView(canvas, w.toFloat(), h.toFloat(), detail, snapshot, p)
+            } else {
+                drawListView(canvas, w.toFloat(), h.toFloat(), snapshot, p)
+            }
         }
         return bmp
     }
@@ -177,30 +182,130 @@ object CueSheetRenderer {
     ) {
         val headerH = h * 0.10f
         val rowH = h * 0.18f
-        val padX = w * 0.035f
-
-        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-
-        // Header background
-        fillPaint.color = p.headerBg
-        canvas.drawRect(0f, 0f, w, headerH, fillPaint)
-
-        // Header title: "CUE SHEET+ (2/7)"
         val win = snapshot.window
+
+        drawHeaderChrome(
+            canvas = canvas,
+            w = w,
+            h = h,
+            headerH = headerH,
+            canScrollUp = win.canScrollUp,
+            canScrollDown = win.canScrollDown,
+            p = p,
+        )
+
+        // Left Filter button in 2.5%..22% width
+        drawHeaderFilterButton(
+            canvas = canvas,
+            left = w * 0.025f,
+            top = headerH * 0.15f,
+            right = w * 0.220f,
+            bottom = headerH * 0.85f,
+            hasActiveFilter = snapshot.hasActiveCategoryFilter,
+            p = p,
+        )
+
+        // Center POI counter between Filter button and Scroll buttons: "2 / 7"
         val demoTag = if (snapshot.isDemoMode) " • ${snapshot.strings.demoBadge}" else ""
-        val headerTitle = "CUE SHEET+ (${win.activeOrdinal}/${win.totalCount})$demoTag"
+        val counterText = "${win.activeOrdinal} / ${win.totalCount}$demoTag"
         val headerPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = condensedBold
             color = p.textPrimary
-            textSize = headerH * 0.42f
+            textSize = headerH * 0.48f
+            textAlign = Paint.Align.CENTER
         }
-        val titleMaxW = w * 0.54f
-        val clippedHeader = TextUtils.ellipsize(headerTitle, headerPaint, titleMaxW, TextUtils.TruncateAt.END).toString()
+        val counterMaxW = w * 0.32f
+        if (headerPaint.measureText(counterText) > counterMaxW) {
+            headerPaint.textSize = headerH * 0.38f
+        }
+        val clippedCounter = TextUtils.ellipsize(counterText, headerPaint, counterMaxW, TextUtils.TruncateAt.END).toString()
         val headerBaseline = headerH * 0.5f - (headerPaint.descent() + headerPaint.ascent()) * 0.5f
-        canvas.drawText(clippedHeader, padX, headerBaseline, headerPaint)
+        canvas.drawText(clippedCounter, w * 0.395f, headerBaseline, headerPaint)
 
-        // Up [ ▲ ] button in 56%..78% width, Down [ ▼ ] button in 78%..100% width
+        // Draw up to 5 rows
+        win.rows.take(5).forEachIndexed { idx, point ->
+            val top = headerH + idx * rowH
+            val bottom = top + rowH
+            drawCueRow(canvas, w, top, bottom, point, snapshot, p)
+        }
+    }
+
+    private fun drawFilterView(
+        canvas: Canvas,
+        w: Float,
+        h: Float,
+        snapshot: CueSheetSnapshot,
+        p: Palette,
+    ) {
+        val headerH = h * 0.10f
+        val rowH = h * 0.18f
+        val categories = snapshot.availableCategories
+        val maxStart = (categories.size - 5).coerceAtLeast(0)
+        val effectiveStart = snapshot.filterScrollIndex.coerceIn(0, maxStart)
+
+        drawHeaderChrome(
+            canvas = canvas,
+            w = w,
+            h = h,
+            headerH = headerH,
+            canScrollUp = effectiveStart > 0,
+            canScrollDown = effectiveStart < maxStart,
+            p = p,
+        )
+
+        // Left/Center Back pill button (2.5%..54.5%)
+        val backRect = RectF(w * 0.025f, headerH * 0.15f, w * 0.545f, headerH * 0.85f)
+        val backRadius = backRect.height() * 0.28f
+        val backBg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = p.buttonBg
+        }
+        val backBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = max(2f, backRect.height() * 0.05f)
+            color = p.buttonBorder
+        }
+        canvas.drawRoundRect(backRect, backRadius, backRadius, backBg)
+        canvas.drawRoundRect(backRect, backRadius, backRadius, backBorder)
+
+        val backTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = boldSans
+            color = p.textPrimary
+            textSize = headerH * 0.38f
+            textAlign = Paint.Align.CENTER
+        }
+        val backLabel = snapshot.strings.filterHeaderTitle
+        val backMaxW = (backRect.width() - w * 0.04f).coerceAtLeast(20f)
+        if (backTextPaint.measureText(backLabel) > backMaxW) {
+            backTextPaint.textSize = headerH * 0.32f
+        }
+        val clippedBack = TextUtils.ellipsize(backLabel, backTextPaint, backMaxW, TextUtils.TruncateAt.END).toString()
+        val backBaseline = backRect.centerY() - (backTextPaint.descent() + backTextPaint.ascent()) * 0.5f
+        canvas.drawText(clippedBack, backRect.centerX(), backBaseline, backTextPaint)
+
+        categories.drop(effectiveStart).take(5).forEachIndexed { idx, item ->
+            val top = headerH + idx * rowH
+            val bottom = top + rowH
+            drawFilterRow(canvas, w, top, bottom, item, snapshot, p)
+        }
+    }
+
+    private fun drawHeaderChrome(
+        canvas: Canvas,
+        w: Float,
+        h: Float,
+        headerH: Float,
+        canScrollUp: Boolean,
+        canScrollDown: Boolean,
+        p: Palette,
+    ) {
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = p.headerBg
+        }
+        canvas.drawRect(0f, 0f, w, headerH, fillPaint)
+
+        // Up [ ▲ ] button in 57%..76.5% width, Down [ ▼ ] button in 78.5%..97.5% width
         drawHeaderScrollButton(
             canvas = canvas,
             left = w * 0.57f,
@@ -208,7 +313,7 @@ object CueSheetRenderer {
             right = w * 0.765f,
             bottom = headerH * 0.85f,
             isUp = true,
-            enabled = win.canScrollUp,
+            enabled = canScrollUp,
             p = p,
         )
         drawHeaderScrollButton(
@@ -218,21 +323,113 @@ object CueSheetRenderer {
             right = w * 0.975f,
             bottom = headerH * 0.85f,
             isUp = false,
-            enabled = win.canScrollDown,
+            enabled = canScrollDown,
             p = p,
         )
 
-        // Bottom border of header
-        strokePaint.color = p.divider
-        strokePaint.strokeWidth = max(1.5f, h * 0.002f)
-        canvas.drawLine(0f, headerH, w, headerH, strokePaint)
-
-        // Draw up to 5 rows
-        win.rows.take(5).forEachIndexed { idx, point ->
-            val top = headerH + idx * rowH
-            val bottom = top + rowH
-            drawCueRow(canvas, w, top, bottom, point, snapshot, p)
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            color = p.divider
+            strokeWidth = max(1.5f, h * 0.002f)
         }
+        canvas.drawLine(0f, headerH, w, headerH, strokePaint)
+    }
+
+    private fun drawFilterRow(
+        canvas: Canvas,
+        w: Float,
+        top: Float,
+        bottom: Float,
+        item: CueCategoryItem,
+        snapshot: CueSheetSnapshot,
+        p: Palette,
+    ) {
+        val rowH = bottom - top
+        val padX = w * 0.032f
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+
+        val iconRadius = min(rowH * 0.28f, w * 0.078f)
+        val iconCx = padX + iconRadius + w * 0.01f
+        val iconCy = top + rowH * 0.50f
+        drawWaypointBadge(
+            canvas = canvas,
+            cx = iconCx,
+            cy = iconCy,
+            r = iconRadius,
+            category = item.category,
+            isPassed = false,
+            p = p,
+            alpha = if (item.isEnabled) 255 else 110,
+        )
+
+        val rightEdge = w - padX - w * 0.01f
+        val checkSize = rowH * 0.42f
+        val checkRect = RectF(
+            rightEdge - checkSize,
+            iconCy - checkSize * 0.5f,
+            rightEdge,
+            iconCy + checkSize * 0.5f,
+        )
+        val checkR = checkSize * 0.22f
+        val checkFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = if (item.isEnabled) p.activeBorder else p.cardBg
+        }
+        canvas.drawRoundRect(checkRect, checkR, checkR, checkFill)
+
+        if (item.isEnabled) {
+            val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = max(3f, checkSize * 0.13f)
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+                color = 0xFFFFFFFF.toInt()
+            }
+            val cx = checkRect.centerX()
+            val cy = checkRect.centerY()
+            val tickPath = Path().apply {
+                moveTo(cx - checkSize * 0.26f, cy + checkSize * 0.02f)
+                lineTo(cx - checkSize * 0.06f, cy + checkSize * 0.22f)
+                lineTo(cx + checkSize * 0.28f, cy - checkSize * 0.20f)
+            }
+            canvas.drawPath(tickPath, tickPaint)
+        } else {
+            val checkBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = max(2f, checkSize * 0.07f)
+                color = p.buttonBorder
+            }
+            canvas.drawRoundRect(checkRect, checkR, checkR, checkBorder)
+        }
+
+        val s = snapshot.strings
+        val textLeft = iconCx + iconRadius + w * 0.032f
+        val availTextW = (checkRect.left - w * 0.03f - textLeft).coerceAtLeast(w * 0.20f)
+
+        val label = item.category.localizedLabel(s)
+        val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = boldSans
+            textSize = rowH * 0.29f
+            color = if (item.isEnabled) p.textPrimary else p.textMuted
+        }
+        if (namePaint.measureText(label) > availTextW) {
+            namePaint.textSize = rowH * 0.25f
+        }
+        val cleanLabel = TextUtils.ellipsize(label, namePaint, availTextW, TextUtils.TruncateAt.END).toString()
+        canvas.drawText(cleanLabel, textLeft, top + rowH * 0.45f, namePaint)
+
+        val countStr = s.formatCategoryRouteCount(item.count)
+        val subPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = mediumSans
+            textSize = rowH * 0.21f
+            color = if (item.isEnabled) p.textSecondary else p.textMuted
+        }
+        val clippedSub = TextUtils.ellipsize(countStr, subPaint, availTextW, TextUtils.TruncateAt.END).toString()
+        canvas.drawText(clippedSub, textLeft, top + rowH * 0.78f, subPaint)
+
+        strokePaint.color = p.divider
+        strokePaint.strokeWidth = max(1.5f, rowH * 0.012f)
+        canvas.drawLine(padX, bottom, w - padX, bottom, strokePaint)
     }
 
     private fun drawHalfPageListView(
@@ -259,16 +456,17 @@ object CueSheetRenderer {
             maxVisibleRows = rowCount,
         )
         val demoTag = if (snapshot.isDemoMode) " • ${snapshot.strings.demoBadge}" else ""
-        val headerTitle = "CUE SHEET+ (${win.activeOrdinal}/${win.totalCount})$demoTag"
+        val headerTitle = "${win.activeOrdinal} / ${win.totalCount}$demoTag"
         val headerPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = condensedBold
             color = p.textPrimary
             textSize = (headerH * 0.48f).coerceAtLeast(14f)
+            textAlign = Paint.Align.CENTER
         }
         val titleMaxW = (w - padX * 2f).coerceAtLeast(40f)
         val clippedHeader = TextUtils.ellipsize(headerTitle, headerPaint, titleMaxW, TextUtils.TruncateAt.END).toString()
         val headerBaseline = headerH * 0.5f - (headerPaint.descent() + headerPaint.ascent()) * 0.5f
-        canvas.drawText(clippedHeader, padX, headerBaseline, headerPaint)
+        canvas.drawText(clippedHeader, w * 0.5f, headerBaseline, headerPaint)
 
         strokePaint.color = p.divider
         strokePaint.strokeWidth = max(1.5f, h * 0.003f)
@@ -279,6 +477,54 @@ object CueSheetRenderer {
             val bottom = top + rowH
             drawCueRow(canvas, w, top, bottom, point, snapshot, p)
         }
+    }
+
+    private fun drawHeaderFilterButton(
+        canvas: Canvas,
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+        hasActiveFilter: Boolean,
+        p: Palette,
+    ) {
+        val rect = RectF(left, top, right, bottom)
+        val radius = rect.height() * 0.28f
+
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = if (hasActiveFilter) p.activeRowBg else p.buttonBg
+        }
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = max(2f, rect.height() * 0.05f)
+            color = if (hasActiveFilter) p.activeBorder else p.buttonBorder
+        }
+        canvas.drawRoundRect(rect, radius, radius, bgPaint)
+        canvas.drawRoundRect(rect, radius, radius, borderPaint)
+
+        val cx = rect.centerX()
+        val cy = rect.centerY()
+        val halfTop = min(rect.width() * 0.26f, rect.height() * 0.30f)
+        val neckHalf = halfTop * 0.26f
+        val topY = cy - rect.height() * 0.23f
+        val midY = cy + rect.height() * 0.02f
+        val botY = cy + rect.height() * 0.26f
+
+        val funnel = Path().apply {
+            moveTo(cx - halfTop, topY)
+            lineTo(cx + halfTop, topY)
+            lineTo(cx + neckHalf, midY)
+            lineTo(cx + neckHalf, botY)
+            lineTo(cx - neckHalf, botY - rect.height() * 0.06f)
+            lineTo(cx - neckHalf, midY)
+            close()
+        }
+        val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = if (hasActiveFilter) p.activeBorder else p.textPrimary
+        }
+        canvas.drawPath(funnel, iconPaint)
     }
 
     private fun drawHeaderScrollButton(
@@ -1053,6 +1299,7 @@ object CueSheetRenderer {
         category: CueCategory,
         isPassed: Boolean,
         p: Palette,
+        alpha: Int = 255,
     ) {
         val bgColor = when {
             isPassed -> p.passedGreen
@@ -1068,12 +1315,14 @@ object CueSheetRenderer {
         val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             color = bgColor
+            this.alpha = alpha
         }
         canvas.drawCircle(cx, cy, r, circlePaint)
 
         val iconFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
             color = fgColor
+            this.alpha = alpha
         }
         val iconStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
@@ -1081,6 +1330,7 @@ object CueSheetRenderer {
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
             color = fgColor
+            this.alpha = alpha
         }
 
         if (isPassed) {

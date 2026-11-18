@@ -125,6 +125,15 @@ class RideNavigationRepository private constructor(private val appContext: Conte
     private var isDetailLocked: Boolean = false
 
     @Volatile
+    private var isFilterOpen: Boolean = false
+
+    @Volatile
+    private var filterScrollIndex: Int = 0
+
+    @Volatile
+    private var filterExpiresAtMs: Long = 0L
+
+    @Volatile
     private var isSystemNightMode: Boolean = isContextNightMode()
 
     private val _snapshot = MutableStateFlow(CueSheetSnapshot())
@@ -173,39 +182,63 @@ class RideNavigationRepository private constructor(private val appContext: Conte
         }
     }
 
-    fun scrollUp() {
+    fun toggleFilterMenu() {
         val current = _snapshot.value
         selectedDetailWaypointId = null
+        isDetailLocked = false
         detailExpiresAtMs = 0L
-        val nextIdx = CueListWindowBuilder.computeNextScrollIndex(
-            allPoints = current.allPoints,
-            currentManualStartIndex = manualStartIndex,
-            delta = -1,
-        )
-        manualStartIndex = nextIdx
-        val timeoutSec = settingsStore.settings.value.autoReturnSeconds
-        manualScrollExpiresAtMs = System.currentTimeMillis() + (timeoutSec + 2) * 1000L
+        if (isFilterOpen) {
+            isFilterOpen = false
+            filterScrollIndex = 0
+            filterExpiresAtMs = 0L
+        } else if (current.availableCategories.isNotEmpty()) {
+            isFilterOpen = true
+            filterScrollIndex = 0
+            val timeoutSec = settingsStore.settings.value.autoReturnSeconds
+            filterExpiresAtMs = System.currentTimeMillis() + (timeoutSec + 5) * 1000L
+        }
         recomputeSnapshot()
     }
 
-    fun scrollDown() {
+    fun scrollUp() = scrollBy(-1)
+
+    fun scrollDown() = scrollBy(+1)
+
+    private fun scrollBy(delta: Int) {
         val current = _snapshot.value
+        val timeoutSec = settingsStore.settings.value.autoReturnSeconds
+        if (isFilterOpen && current.availableCategories.isNotEmpty()) {
+            val maxStart = (current.availableCategories.size - 5).coerceAtLeast(0)
+            filterScrollIndex = (filterScrollIndex + delta).coerceIn(0, maxStart)
+            filterExpiresAtMs = System.currentTimeMillis() + (timeoutSec + 5) * 1000L
+            recomputeSnapshot()
+            return
+        }
         selectedDetailWaypointId = null
         detailExpiresAtMs = 0L
         val nextIdx = CueListWindowBuilder.computeNextScrollIndex(
             allPoints = current.allPoints,
             currentManualStartIndex = manualStartIndex,
-            delta = +1,
+            delta = delta,
         )
         manualStartIndex = nextIdx
-        val timeoutSec = settingsStore.settings.value.autoReturnSeconds
         manualScrollExpiresAtMs = System.currentTimeMillis() + (timeoutSec + 2) * 1000L
         recomputeSnapshot()
     }
 
     fun selectVisibleRow(rowIndex: Int) {
-        val rows = _snapshot.value.window.rows
-        val point = rows.getOrNull(rowIndex) ?: return
+        val current = _snapshot.value
+        if (isFilterOpen && current.availableCategories.isNotEmpty()) {
+            val maxStart = (current.availableCategories.size - 5).coerceAtLeast(0)
+            val effectiveStart = filterScrollIndex.coerceIn(0, maxStart)
+            val item = current.availableCategories.getOrNull(effectiveStart + rowIndex) ?: return
+            manualStartIndex = null
+            val timeoutSec = settingsStore.settings.value.autoReturnSeconds
+            filterExpiresAtMs = System.currentTimeMillis() + (timeoutSec + 5) * 1000L
+            settingsStore.toggleCategory(item.category)
+            return
+        }
+        val point = current.window.rows.getOrNull(rowIndex) ?: return
         selectedDetailWaypointId = point.id
         isDetailLocked = false
         val timeoutSec = settingsStore.settings.value.autoReturnSeconds
@@ -226,15 +259,24 @@ class RideNavigationRepository private constructor(private val appContext: Conte
     }
 
     fun closeDetail() {
-        if (selectedDetailWaypointId != null) {
-            selectedDetailWaypointId = null
-            isDetailLocked = false
-            detailExpiresAtMs = 0L
-            recomputeSnapshot()
-        } else if (manualStartIndex != null) {
-            manualStartIndex = null
-            manualScrollExpiresAtMs = 0L
-            recomputeSnapshot()
+        when {
+            isFilterOpen -> {
+                isFilterOpen = false
+                filterScrollIndex = 0
+                filterExpiresAtMs = 0L
+                recomputeSnapshot()
+            }
+            selectedDetailWaypointId != null -> {
+                selectedDetailWaypointId = null
+                isDetailLocked = false
+                detailExpiresAtMs = 0L
+                recomputeSnapshot()
+            }
+            manualStartIndex != null -> {
+                manualStartIndex = null
+                manualScrollExpiresAtMs = 0L
+                recomputeSnapshot()
+            }
         }
     }
 
@@ -255,7 +297,12 @@ class RideNavigationRepository private constructor(private val appContext: Conte
                 }
                 lastPaceSampleMs = now
 
-                // Expire detail modal (unless locked) or manual scroll automatically
+                // Expire filter menu, detail modal (unless locked), or manual scroll automatically
+                if (isFilterOpen && now >= filterExpiresAtMs) {
+                    isFilterOpen = false
+                    filterScrollIndex = 0
+                    filterExpiresAtMs = 0L
+                }
                 if (selectedDetailWaypointId != null && !isDetailLocked && now >= detailExpiresAtMs) {
                     selectedDetailWaypointId = null
                     detailExpiresAtMs = 0L
@@ -398,6 +445,9 @@ class RideNavigationRepository private constructor(private val appContext: Conte
                 latestDistanceToDestinationM = null
                 manualStartIndex = null
                 selectedDetailWaypointId = null
+                isFilterOpen = false
+                filterScrollIndex = 0
+                filterExpiresAtMs = 0L
             }
 
             is NavigationState.NavigatingRoute -> {
@@ -513,6 +563,27 @@ class RideNavigationRepository private constructor(private val appContext: Conte
         val totalDistM = route.indexedPolyline.totalDistanceM
         val riderDistM = resolveRiderDistanceAlongRoute(route, totalDistM)
 
+        val availableCategories = RouteGeometryEngine.extractAvailableCategories(
+            indexedPolyline = route.indexedPolyline,
+            routePois = route.routePois,
+            globalPois = globalPois,
+            climbs = route.climbs,
+            includeClimbs = settings.includeClimbs,
+            includeGlobalPois = settings.includeGlobalPois,
+            collapseCircuitPois = settings.collapseCircuitPois,
+            riderDistanceAlongRouteM = riderDistM,
+            disabledCategories = settings.disabledCategories,
+            strings = strings,
+        )
+        if (isFilterOpen && availableCategories.isEmpty()) {
+            isFilterOpen = false
+            filterScrollIndex = 0
+            filterExpiresAtMs = 0L
+        } else {
+            val maxFilterStart = (availableCategories.size - 5).coerceAtLeast(0)
+            filterScrollIndex = filterScrollIndex.coerceIn(0, maxFilterStart)
+        }
+
         val allPoints = RouteGeometryEngine.buildCuePoints(
             routeName = route.routeName,
             indexedPolyline = route.indexedPolyline,
@@ -532,6 +603,7 @@ class RideNavigationRepository private constructor(private val appContext: Conte
             descentSkillFactor = flatPaceEstimator.descentSkillFactor,
             riderWeightKg = riderWeightKg,
             collapseCircuitPois = settings.collapseCircuitPois,
+            disabledCategories = settings.disabledCategories,
             strings = strings,
         )
 
@@ -561,6 +633,9 @@ class RideNavigationRepository private constructor(private val appContext: Conte
             themePreference = settings.themePreference,
             timeDisplayMode = settings.timeDisplayMode,
             isSystemNightMode = isSystemNightMode,
+            availableCategories = availableCategories,
+            isFilterOpen = isFilterOpen,
+            filterScrollIndex = filterScrollIndex,
             strings = strings,
         )
     }

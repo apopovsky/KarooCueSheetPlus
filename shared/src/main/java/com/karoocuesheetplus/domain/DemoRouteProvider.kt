@@ -16,6 +16,8 @@ object DemoRouteProvider {
         isMetricDistance: Boolean = true,
         isMetricElevation: Boolean = true,
         is24HourFormat: Boolean = true,
+        isFilterOpen: Boolean = false,
+        filterScrollIndex: Int = 0,
         strings: CueStrings = CueStrings.forLocale(),
     ): CueSheetSnapshot {
         val totalDistM = 44_200.0
@@ -120,6 +122,18 @@ object DemoRouteProvider {
 
         val surface = settings.surfacePreference.resolve(SurfaceProfile.GRAVEL)
         val flatMps = settings.defaultFlatSpeedKmh / 3.6
+        val availableCategories = RouteGeometryEngine.extractAvailableCategories(
+            indexedPolyline = indexed,
+            routePois = routePois,
+            globalPois = emptyList(),
+            climbs = climbs,
+            includeClimbs = settings.includeClimbs,
+            includeGlobalPois = settings.includeGlobalPois,
+            collapseCircuitPois = settings.collapseCircuitPois,
+            riderDistanceAlongRouteM = simulatedRiderDistM,
+            disabledCategories = settings.disabledCategories,
+            strings = strings,
+        )
         val allPoints = RouteGeometryEngine.buildCuePoints(
             routeName = demoRouteTitle,
             indexedPolyline = indexed,
@@ -135,6 +149,7 @@ object DemoRouteProvider {
             nowEpochMillis = nowEpochMillis,
             surface = surface,
             collapseCircuitPois = settings.collapseCircuitPois,
+            disabledCategories = settings.disabledCategories,
             strings = strings,
         )
 
@@ -161,6 +176,9 @@ object DemoRouteProvider {
             is24HourFormat = is24HourFormat,
             themePreference = settings.themePreference,
             timeDisplayMode = settings.timeDisplayMode,
+            availableCategories = availableCategories,
+            isFilterOpen = isFilterOpen,
+            filterScrollIndex = filterScrollIndex,
             strings = strings,
         )
     }

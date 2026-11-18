@@ -25,6 +25,7 @@ class CueSheetActionReceiver : BroadcastReceiver() {
             }
             ACTION_CLOSE_DETAIL -> repo.closeDetail()
             ACTION_TOGGLE_DETAIL_LOCK -> repo.toggleDetailLock()
+            ACTION_TOGGLE_FILTER -> repo.toggleFilterMenu()
         }
     }
 
@@ -34,12 +35,14 @@ class CueSheetActionReceiver : BroadcastReceiver() {
         const val ACTION_SELECT_ROW = "com.karoocuesheetplus.ACTION_SELECT_ROW"
         const val ACTION_CLOSE_DETAIL = "com.karoocuesheetplus.ACTION_CLOSE_DETAIL"
         const val ACTION_TOGGLE_DETAIL_LOCK = "com.karoocuesheetplus.ACTION_TOGGLE_DETAIL_LOCK"
+        const val ACTION_TOGGLE_FILTER = "com.karoocuesheetplus.ACTION_TOGGLE_FILTER"
         private const val EXTRA_ROW_INDEX = "extra_row_index"
 
         private const val REQ_SCROLL_UP = 1001
         private const val REQ_SCROLL_DOWN = 1002
         private const val REQ_CLOSE_DETAIL = 1003
         private const val REQ_TOGGLE_LOCK = 1004
+        private const val REQ_TOGGLE_FILTER = 1005
         private const val REQ_ROW_BASE = 1010
 
         fun scrollUpPendingIntent(context: Context): PendingIntent =
@@ -53,6 +56,9 @@ class CueSheetActionReceiver : BroadcastReceiver() {
 
         fun toggleDetailLockPendingIntent(context: Context): PendingIntent =
             buildBroadcast(context, REQ_TOGGLE_LOCK, ACTION_TOGGLE_DETAIL_LOCK)
+
+        fun toggleFilterPendingIntent(context: Context): PendingIntent =
+            buildBroadcast(context, REQ_TOGGLE_FILTER, ACTION_TOGGLE_FILTER)
 
         fun selectRowPendingIntent(context: Context, rowIndex: Int): PendingIntent {
             val intent = Intent(context, CueSheetActionReceiver::class.java).apply {

@@ -252,6 +252,12 @@ enum class TimeDisplayMode {
     ETE_MINUTES_ONLY,
 }
 
+data class CueCategoryItem(
+    val category: CueCategory,
+    val count: Int,
+    val isEnabled: Boolean,
+)
+
 data class CueSheetSettings(
     val includeClimbs: Boolean = true,
     val includeGlobalPois: Boolean = true,
@@ -262,6 +268,7 @@ data class CueSheetSettings(
     val themePreference: ThemePreference = ThemePreference.AUTO,
     val surfacePreference: SurfacePreference = SurfacePreference.AUTO,
     val timeDisplayMode: TimeDisplayMode = TimeDisplayMode.ETA_AND_ETE,
+    val disabledCategories: Set<CueCategory> = emptySet(),
 )
 
 data class CueSheetSnapshot(
@@ -286,5 +293,11 @@ data class CueSheetSnapshot(
     val themePreference: ThemePreference = ThemePreference.AUTO,
     val timeDisplayMode: TimeDisplayMode = TimeDisplayMode.ETA_AND_ETE,
     val isSystemNightMode: Boolean = true,
+    val availableCategories: List<CueCategoryItem> = emptyList(),
+    val isFilterOpen: Boolean = false,
+    val filterScrollIndex: Int = 0,
     val strings: CueStrings = CueStrings.forLocale(),
-)
+) {
+    val hasActiveCategoryFilter: Boolean
+        get() = availableCategories.any { !it.isEnabled }
+}

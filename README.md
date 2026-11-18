@@ -62,7 +62,7 @@ https://github.com/apopovsky/KarooCueSheetPlus/releases/latest
 ### Via ADB
 
 ```bash
-adb install -r KarooCueSheetPlus-v1.0.4-release.apk
+adb install -r KarooCueSheetPlus-v1.0.5-release.apk
 ```
 
 ---

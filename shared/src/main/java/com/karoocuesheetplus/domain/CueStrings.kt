@@ -58,6 +58,9 @@ data class CueStrings(
     val timeModeEtaAndEte: String,
     val timeModeHoursMinutes: String,
     val timeModeMinutesOnly: String,
+    // Category Filter
+    val filterHeaderTitle: String,
+    val categoryRouteCountFormat: String,
 ) {
     fun formatClimbTitle(indexOneBased: Int): String =
         String.format(Locale.US, climbTitleFormat, indexOneBased)
@@ -97,6 +100,9 @@ data class CueStrings(
         TimeDisplayMode.ETE_HOURS_MINUTES -> timeModeHoursMinutes
         TimeDisplayMode.ETE_MINUTES_ONLY -> timeModeMinutesOnly
     }
+
+    fun formatCategoryRouteCount(count: Int): String =
+        String.format(Locale.US, categoryRouteCountFormat, count)
 
     companion object {
         val EN = CueStrings(
@@ -147,6 +153,8 @@ data class CueStrings(
             timeModeEtaAndEte = "ETA + Time",
             timeModeHoursMinutes = "Hours & Min (2h 15m)",
             timeModeMinutesOnly = "Minutes Only (135m)",
+            filterHeaderTitle = "← Filter POIs",
+            categoryRouteCountFormat = "%d on route",
         )
 
         val ES = CueStrings(
@@ -197,6 +205,8 @@ data class CueStrings(
             timeModeEtaAndEte = "Hora + Tiempo",
             timeModeHoursMinutes = "Horas y Min (2h 15m)",
             timeModeMinutesOnly = "Solo Minutos (135m)",
+            filterHeaderTitle = "← Filtrar POIs",
+            categoryRouteCountFormat = "%d en la ruta",
         )
 
         val PT = EN.copy(
@@ -241,6 +251,8 @@ data class CueStrings(
             timeModeEtaAndEte = "Hora + Tempo",
             timeModeHoursMinutes = "Horas e Min (2h 15m)",
             timeModeMinutesOnly = "Só Minutos (135m)",
+            filterHeaderTitle = "← Filtrar POIs",
+            categoryRouteCountFormat = "%d na rota",
         )
 
         val FR = EN.copy(
@@ -277,6 +289,8 @@ data class CueStrings(
             timeModeEtaAndEte = "ETA + Temps",
             timeModeHoursMinutes = "Heures & Min (2h 15m)",
             timeModeMinutesOnly = "Minutes seules (135m)",
+            filterHeaderTitle = "← Filtrer POIs",
+            categoryRouteCountFormat = "%d sur la route",
         )
 
         val IT = EN.copy(
@@ -313,6 +327,8 @@ data class CueStrings(
             timeModeEtaAndEte = "ETA + Tempo",
             timeModeHoursMinutes = "Ore e Min (2h 15m)",
             timeModeMinutesOnly = "Solo Minuti (135m)",
+            filterHeaderTitle = "← Filtra POI",
+            categoryRouteCountFormat = "%d sul percorso",
         )
 
         val DE = EN.copy(
@@ -349,6 +365,8 @@ data class CueStrings(
             timeModeEtaAndEte = "ETA + Zeit",
             timeModeHoursMinutes = "Std. & Min. (2h 15m)",
             timeModeMinutesOnly = "Nur Minuten (135m)",
+            filterHeaderTitle = "← POIs filtern",
+            categoryRouteCountFormat = "%d auf Route",
         )
 
         fun forLocale(locale: Locale = Locale.getDefault()): CueStrings {

@@ -174,7 +174,8 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
             return
         }
 
-        val isDetailOpen = snapshot.selectedDetailPoint != null
+        val isFilterOpen = snapshot.isFilterOpen && snapshot.availableCategories.isNotEmpty()
+        val isDetailOpen = !isFilterOpen && snapshot.selectedDetailPoint != null
         rv.setViewVisibility(R.id.overlay_list_touch, if (isDetailOpen) View.GONE else View.VISIBLE)
         rv.setViewVisibility(R.id.overlay_detail_touch, if (isDetailOpen) View.VISIBLE else View.GONE)
 
@@ -194,6 +195,16 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
             }
             rv.setOnClickPendingIntent(R.id.touch_detail_body, bodyIntent)
         } else {
+            val leftIntent = if (isFilterOpen) {
+                CueSheetActionReceiver.closeDetailPendingIntent(context)
+            } else {
+                CueSheetActionReceiver.toggleFilterPendingIntent(context)
+            }
+            rv.setOnClickPendingIntent(R.id.touch_open_filter, leftIntent)
+            rv.setOnClickPendingIntent(
+                R.id.touch_header_center,
+                CueSheetActionReceiver.closeDetailPendingIntent(context)
+            )
             rv.setOnClickPendingIntent(
                 R.id.touch_scroll_up,
                 CueSheetActionReceiver.scrollUpPendingIntent(context)
@@ -209,9 +220,16 @@ class CueSheetFullDataType(extension: String) : DataTypeImpl(extension, TYPE_ID)
                 R.id.touch_row_3,
                 R.id.touch_row_4,
             )
-            val visibleCount = snapshot.window.rows.size
+            val visibleCount = if (isFilterOpen) {
+                val maxStart = (snapshot.availableCategories.size - 5).coerceAtLeast(0)
+                val start = snapshot.filterScrollIndex.coerceIn(0, maxStart)
+                (snapshot.availableCategories.size - start).coerceIn(0, 5)
+            } else {
+                snapshot.window.rows.size
+            }
             for (i in rowIds.indices) {
                 if (i < visibleCount) {
+                    rv.setViewVisibility(rowIds[i], View.VISIBLE)
                     rv.setOnClickPendingIntent(
                         rowIds[i],
                         CueSheetActionReceiver.selectRowPendingIntent(context, i)

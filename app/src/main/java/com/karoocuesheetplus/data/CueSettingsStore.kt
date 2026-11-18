@@ -1,6 +1,7 @@
 package com.karoocuesheetplus.data
 
 import android.content.Context
+import com.karoocuesheetplus.domain.CueCategory
 import com.karoocuesheetplus.domain.CueSheetSettings
 import com.karoocuesheetplus.domain.SurfacePreference
 import com.karoocuesheetplus.domain.ThemePreference
@@ -39,8 +40,26 @@ class CueSettingsStore private constructor(context: Context) {
             .putString(KEY_THEME_PREF, next.themePreference.name)
             .putString(KEY_SURFACE_PREF, next.surfacePreference.name)
             .putString(KEY_TIME_DISPLAY_MODE, next.timeDisplayMode.name)
+            .putString(
+                KEY_DISABLED_CATEGORIES,
+                next.disabledCategories
+                    .filter { it != CueCategory.FINISH }
+                    .joinToString(",") { it.name }
+            )
             .apply()
         _settings.value = next
+    }
+
+    fun toggleCategory(category: CueCategory) {
+        if (category == CueCategory.FINISH) return
+        update { current ->
+            val updated = if (category in current.disabledCategories) {
+                current.disabledCategories - category
+            } else {
+                current.disabledCategories + category
+            }
+            current.copy(disabledCategories = updated)
+        }
     }
 
     private fun loadSettings(): CueSheetSettings {
@@ -53,6 +72,15 @@ class CueSettingsStore private constructor(context: Context) {
         val timeModeStr = prefs.getString(KEY_TIME_DISPLAY_MODE, TimeDisplayMode.ETA_AND_ETE.name)
         val timeMode = runCatching { TimeDisplayMode.valueOf(timeModeStr ?: TimeDisplayMode.ETA_AND_ETE.name) }
             .getOrDefault(TimeDisplayMode.ETA_AND_ETE)
+        val disabledCatsRaw = prefs.getString(KEY_DISABLED_CATEGORIES, "").orEmpty()
+        val disabledCats = disabledCatsRaw
+            .split(',')
+            .mapNotNull { token ->
+                val trimmed = token.trim()
+                if (trimmed.isEmpty()) null
+                else CueCategory.entries.firstOrNull { it.name == trimmed && it != CueCategory.FINISH }
+            }
+            .toSet()
         return CueSheetSettings(
             includeClimbs = prefs.getBoolean(KEY_INCLUDE_CLIMBS, true),
             includeGlobalPois = prefs.getBoolean(KEY_INCLUDE_GLOBAL_POIS, true),
@@ -63,6 +91,7 @@ class CueSettingsStore private constructor(context: Context) {
             themePreference = theme,
             surfacePreference = surf,
             timeDisplayMode = timeMode,
+            disabledCategories = disabledCats,
         )
     }
 
@@ -78,6 +107,7 @@ class CueSettingsStore private constructor(context: Context) {
         private const val KEY_THEME_PREF = "theme_pref"
         private const val KEY_SURFACE_PREF = "surface_pref"
         private const val KEY_TIME_DISPLAY_MODE = "time_display_mode"
+        private const val KEY_DISABLED_CATEGORIES = "disabled_categories"
 
         @Volatile
         private var instance: CueSettingsStore? = null

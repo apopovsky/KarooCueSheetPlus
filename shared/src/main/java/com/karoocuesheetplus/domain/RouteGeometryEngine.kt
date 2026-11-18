@@ -99,10 +99,16 @@ object RouteGeometryEngine {
         return ProjectionResult(bestAlongM, bestCrossM)
     }
 
-    fun buildCuePoints(
-        routeName: String?,
+    private data class RawCandidate(
+        val id: String,
+        val name: String,
+        val subtitle: String,
+        val category: CueCategory,
+        val distanceM: Double,
+    )
+
+    fun extractAvailableCategories(
         indexedPolyline: IndexedPolyline,
-        elevationProfile: List<ElevationSample>,
         routePois: List<RawPoiInput>,
         globalPois: List<RawPoiInput>,
         climbs: List<ClimbSegment>,
@@ -110,28 +116,56 @@ object RouteGeometryEngine {
         includeGlobalPois: Boolean = true,
         collapseCircuitPois: Boolean = true,
         riderDistanceAlongRouteM: Double = 0.0,
-        rejoinExtraDistanceM: Double = 0.0,
-        flatSpeedMps: Double = 7.0,
-        nowEpochMillis: Long = System.currentTimeMillis(),
-        surface: SurfaceProfile = SurfaceProfile.GRAVEL,
-        vamMh: Double? = null,
-        climbWheelWkg: Double? = null,
-        descentSkillFactor: Double = 1.0,
-        riderWeightKg: Double = GradientEtaCalculator.DEFAULT_RIDER_WEIGHT_KG,
+        disabledCategories: Set<CueCategory> = emptySet(),
         strings: CueStrings = CueStrings.forLocale(),
-    ): List<CuePoint> {
-        val totalDistM = indexedPolyline.totalDistanceM
-        if (totalDistM <= 1.0) return emptyList()
-
-        data class Candidate(
-            val id: String,
-            val name: String,
-            val subtitle: String,
-            val category: CueCategory,
-            val distanceM: Double,
+    ): List<CueCategoryItem> {
+        if (indexedPolyline.totalDistanceM <= 1.0) return emptyList()
+        val rawCandidates = buildRawCandidates(
+            indexedPolyline = indexedPolyline,
+            routePois = routePois,
+            globalPois = globalPois,
+            climbs = climbs,
+            includeClimbs = includeClimbs,
+            includeGlobalPois = includeGlobalPois,
+            collapseCircuitPois = collapseCircuitPois,
+            riderDistanceAlongRouteM = riderDistanceAlongRouteM,
+            strings = strings,
         )
+        val counts = HashMap<CueCategory, Int>()
+        for (cand in rawCandidates) {
+            if (cand.category != CueCategory.FINISH) {
+                counts[cand.category] = (counts[cand.category] ?: 0) + 1
+            }
+        }
+        return CueCategory.entries
+            .filter { it != CueCategory.FINISH }
+            .mapNotNull { cat ->
+                val count = counts[cat] ?: 0
+                if (count > 0) {
+                    CueCategoryItem(
+                        category = cat,
+                        count = count,
+                        isEnabled = cat !in disabledCategories,
+                    )
+                } else {
+                    null
+                }
+            }
+    }
 
-        val candidates = ArrayList<Candidate>()
+    private fun buildRawCandidates(
+        indexedPolyline: IndexedPolyline,
+        routePois: List<RawPoiInput>,
+        globalPois: List<RawPoiInput>,
+        climbs: List<ClimbSegment>,
+        includeClimbs: Boolean,
+        includeGlobalPois: Boolean,
+        collapseCircuitPois: Boolean,
+        riderDistanceAlongRouteM: Double,
+        strings: CueStrings,
+    ): ArrayList<RawCandidate> {
+        val totalDistM = indexedPolyline.totalDistanceM
+        val candidates = ArrayList<RawCandidate>()
 
         // 1. Route POIs
         for (poi in routePois) {
@@ -167,7 +201,7 @@ object RouteGeometryEngine {
                     CueCategory.resolveSubtitle(category, poi.type, poi.name, strings)
                 }
                 candidates.add(
-                    Candidate(
+                    RawCandidate(
                         id = "${poi.id}_$occIdx",
                         name = cleanName,
                         subtitle = subtitle,
@@ -188,7 +222,7 @@ object RouteGeometryEngine {
                     val category = CueCategory.fromKarooPoiTypeAndName(gPoi.type, gPoi.name)
                     val cleanName = gPoi.name?.trim().takeUnless { it.isNullOrEmpty() } ?: category.localizedLabel(strings)
                     candidates.add(
-                        Candidate(
+                        RawCandidate(
                             id = "global_${gPoi.id}",
                             name = cleanName,
                             subtitle = "${category.localizedLabel(strings)} • ${strings.globalSuffix}",
@@ -210,7 +244,7 @@ object RouteGeometryEngine {
                 }
                 if (!duplicatePoi && climb.totalElevationM >= 25.0) {
                     candidates.add(
-                        Candidate(
+                        RawCandidate(
                             id = "climb_${idx}_${summitDist.roundToInt()}",
                             name = strings.formatClimbTitle(idx + 1),
                             subtitle = strings.formatClimbSubtitle(climb),
@@ -222,12 +256,56 @@ object RouteGeometryEngine {
             }
         }
 
+        return candidates
+    }
+
+    fun buildCuePoints(
+        routeName: String?,
+        indexedPolyline: IndexedPolyline,
+        elevationProfile: List<ElevationSample>,
+        routePois: List<RawPoiInput>,
+        globalPois: List<RawPoiInput>,
+        climbs: List<ClimbSegment>,
+        includeClimbs: Boolean = true,
+        includeGlobalPois: Boolean = true,
+        collapseCircuitPois: Boolean = true,
+        riderDistanceAlongRouteM: Double = 0.0,
+        rejoinExtraDistanceM: Double = 0.0,
+        flatSpeedMps: Double = 7.0,
+        nowEpochMillis: Long = System.currentTimeMillis(),
+        surface: SurfaceProfile = SurfaceProfile.GRAVEL,
+        vamMh: Double? = null,
+        climbWheelWkg: Double? = null,
+        descentSkillFactor: Double = 1.0,
+        riderWeightKg: Double = GradientEtaCalculator.DEFAULT_RIDER_WEIGHT_KG,
+        disabledCategories: Set<CueCategory> = emptySet(),
+        strings: CueStrings = CueStrings.forLocale(),
+    ): List<CuePoint> {
+        val totalDistM = indexedPolyline.totalDistanceM
+        if (totalDistM <= 1.0) return emptyList()
+
+        val rawCandidates = buildRawCandidates(
+            indexedPolyline = indexedPolyline,
+            routePois = routePois,
+            globalPois = globalPois,
+            climbs = climbs,
+            includeClimbs = includeClimbs,
+            includeGlobalPois = includeGlobalPois,
+            collapseCircuitPois = collapseCircuitPois,
+            riderDistanceAlongRouteM = riderDistanceAlongRouteM,
+            strings = strings,
+        )
+
+        val candidates = rawCandidates.filterTo(ArrayList(rawCandidates.size)) {
+            it.category == CueCategory.FINISH || it.category !in disabledCategories
+        }
+
         // 4. Finish / Route End
         val hasFinishPoi = candidates.any { totalDistM - it.distanceM <= FINISH_DEDUP_M }
         if (!hasFinishPoi) {
             val finishSubtitle = routeName?.takeIf { it.isNotBlank() } ?: strings.catFinish
             candidates.add(
-                Candidate(
+                RawCandidate(
                     id = "route_finish",
                     name = strings.finishPointName,
                     subtitle = finishSubtitle,

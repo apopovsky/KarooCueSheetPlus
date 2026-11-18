@@ -42,6 +42,8 @@ class MainActivity : ComponentActivity() {
     private var previewManualIndex: Int? = 0
     private var previewDetailId: String? = null
     private var previewDetailLocked: Boolean = false
+    private var previewFilterOpen: Boolean = false
+    private var previewFilterScrollIndex: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -359,9 +361,35 @@ class MainActivity : ComponentActivity() {
                     selectedDetailId = previewDetailId,
                     detailRemainingSeconds = if (previewDetailLocked) 0 else currentSettings.autoReturnSeconds,
                     isDetailLocked = previewDetailLocked,
+                    isFilterOpen = previewFilterOpen,
+                    filterScrollIndex = previewFilterScrollIndex,
                 )
 
-                if (previewDetailId != null) {
+                if (previewFilterOpen && snap.availableCategories.isNotEmpty()) {
+                    val maxFilterStart = (snap.availableCategories.size - 5).coerceAtLeast(0)
+                    if (relY <= 0.11f) {
+                        when {
+                            relX <= 0.56f -> {
+                                previewFilterOpen = false
+                                previewFilterScrollIndex = 0
+                            }
+                            relX <= 0.775f -> {
+                                previewFilterScrollIndex = (previewFilterScrollIndex - 1).coerceIn(0, maxFilterStart)
+                            }
+                            else -> {
+                                previewFilterScrollIndex = (previewFilterScrollIndex + 1).coerceIn(0, maxFilterStart)
+                            }
+                        }
+                    } else {
+                        val rowIdx = (((relY - 0.10f) / 0.18f).toInt()).coerceIn(0, 4)
+                        val effectiveStart = previewFilterScrollIndex.coerceIn(0, maxFilterStart)
+                        val tappedCat = snap.availableCategories.getOrNull(effectiveStart + rowIdx)
+                        if (tappedCat != null) {
+                            previewManualIndex = null
+                            settingsStore.toggleCategory(tappedCat.category)
+                        }
+                    }
+                } else if (previewDetailId != null) {
                     if (relY <= 0.11f && relX > 0.80f) {
                         previewDetailLocked = !previewDetailLocked
                     } else if (relY <= 0.11f || !previewDetailLocked) {
@@ -369,14 +397,26 @@ class MainActivity : ComponentActivity() {
                         previewDetailLocked = false
                     }
                 } else if (relY <= 0.11f) {
-                    if (relX in 0.55f..0.775f) {
-                        previewManualIndex = CueListWindowBuilder.computeNextScrollIndex(
-                            snap.allPoints, previewManualIndex, -1
-                        )
-                    } else if (relX > 0.775f) {
-                        previewManualIndex = CueListWindowBuilder.computeNextScrollIndex(
-                            snap.allPoints, previewManualIndex, +1
-                        )
+                    when {
+                        relX <= 0.24f -> {
+                            if (snap.availableCategories.isNotEmpty()) {
+                                previewFilterOpen = true
+                                previewFilterScrollIndex = 0
+                            }
+                        }
+                        relX <= 0.56f -> {
+                            previewManualIndex = null
+                        }
+                        relX <= 0.775f -> {
+                            previewManualIndex = CueListWindowBuilder.computeNextScrollIndex(
+                                snap.allPoints, previewManualIndex, -1
+                            )
+                        }
+                        else -> {
+                            previewManualIndex = CueListWindowBuilder.computeNextScrollIndex(
+                                snap.allPoints, previewManualIndex, +1
+                            )
+                        }
                     }
                 } else {
                     val rowIdx = (((relY - 0.10f) / 0.18f).toInt()).coerceIn(0, 4)
@@ -386,7 +426,7 @@ class MainActivity : ComponentActivity() {
                         previewDetailLocked = false
                     }
                 }
-                refreshInteractivePreview(currentSettings)
+                refreshInteractivePreview(settingsStore.settings.value)
             }
             true
         }
@@ -399,6 +439,8 @@ class MainActivity : ComponentActivity() {
             selectedDetailId = previewDetailId,
             detailRemainingSeconds = if (previewDetailLocked) 0 else settings.autoReturnSeconds,
             isDetailLocked = previewDetailLocked,
+            isFilterOpen = previewFilterOpen,
+            filterScrollIndex = previewFilterScrollIndex,
         )
         val isNight = when (settings.themePreference) {
             ThemePreference.DARK -> true

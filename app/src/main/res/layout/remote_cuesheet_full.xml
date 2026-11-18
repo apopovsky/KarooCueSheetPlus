@@ -27,9 +27,22 @@
             android:weightSum="100">
 
             <FrameLayout
+                android:id="@+id/touch_open_filter"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_weight="56" />
+                android:layout_weight="24"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <FrameLayout
+                android:id="@+id/touch_header_center"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="32"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true" />
 
             <FrameLayout
                 android:id="@+id/touch_scroll_up"
