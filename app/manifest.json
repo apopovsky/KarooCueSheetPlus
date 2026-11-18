@@ -10,6 +10,7 @@
   "releaseNotes": "v1.0.5: Fixed automatic Day/Night theme switching on Karoo 3; added configurable remaining time formats (ETA + Time, Hours & Min, Minutes Only) with larger high-legibility font; added interactive header POI category filter for the active route and centered POI counter.",
   "screenshotUrls": [
     "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.5/screenshot-cuesheet-list.png",
+    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.5/screenshot-cuesheet-filter.png",
     "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.5/screenshot-cuesheet-detail.png"
   ],
   "tags": [
