@@ -1,19 +1,15 @@
 package com.karoocuesheetplus.ui
 
-import android.annotation.SuppressLint
-import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Switch
@@ -22,30 +18,23 @@ import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import com.karoocuesheetplus.data.CueSettingsStore
 import com.karoocuesheetplus.domain.CueFormatter
-import com.karoocuesheetplus.domain.CueListWindowBuilder
-import com.karoocuesheetplus.domain.CueSheetSettings
 import com.karoocuesheetplus.domain.CueStrings
-import com.karoocuesheetplus.domain.DemoRouteProvider
 import com.karoocuesheetplus.domain.RowMetricMode
 import com.karoocuesheetplus.domain.SurfacePreference
 import com.karoocuesheetplus.domain.ThemePreference
 import com.karoocuesheetplus.domain.TimeDisplayMode
 import com.karoocuesheetplus.domain.UnitPreference
-import com.karoocuesheetplus.render.CueSheetRenderer
+import io.hammerhead.karooext.KarooSystemService
+import io.hammerhead.karooext.models.UserProfile
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var settingsStore: CueSettingsStore
-    private lateinit var previewFullImage: ImageView
-    private lateinit var previewSingleImage: ImageView
-
-    private var previewManualIndex: Int? = 0
-    private var previewDetailId: String? = null
-    private var previewDetailLocked: Boolean = false
-    private var previewFilterOpen: Boolean = false
-    private var previewFilterScrollIndex: Int = 0
+    private var karooSystem: KarooSystemService? = null
+    private var userProfileConsumerId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,42 +72,8 @@ class MainActivity : ComponentActivity() {
             setPadding(0, dp(2), 0, dp(12))
         })
 
-        // Interactive Live Preview Card
-        val previewCard = createCardContainer()
-        previewCard.addView(
-            sectionHeader(
-                if (isEs) "VISTA PREVIA INTERACTIVA (TOCA FILAS O ▲/▼)"
-                else "INTERACTIVE PREVIEW (TAP ROWS OR ▲/▼)"
-            )
-        )
-
-        previewFullImage = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(390),
-            ).apply {
-                topMargin = dp(8)
-                bottomMargin = dp(10)
-            }
-            scaleType = ImageView.ScaleType.FIT_XY
-            setupInteractivePreviewTouch(this)
-        }
-        previewCard.addView(previewFullImage)
-
-        previewSingleImage = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(88),
-            )
-            scaleType = ImageView.ScaleType.FIT_XY
-        }
-        previewCard.addView(previewSingleImage)
-        root.addView(previewCard)
-
         // Settings Card
-        val configCard = createCardContainer().apply {
-            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(12)
-        }
+        val configCard = createCardContainer()
         configCard.addView(sectionHeader(if (isEs) "CONFIGURACIÓN DE LA EXTENSIÓN" else "EXTENSION SETTINGS"))
 
         val climbsSwitch = addSwitchRow(
@@ -347,7 +302,9 @@ class MainActivity : ComponentActivity() {
         setContentView(container)
 
         lifecycleScope.launch {
-            settingsStore.settings.collect { s ->
+            combine(settingsStore.settings, settingsStore.karooMetricDistance) { s, karooMetricDist ->
+                s to karooMetricDist
+            }.collect { (s, karooMetricDist) ->
                 val curStrings = CueStrings.forLocale()
                 val curEs = curStrings.langCode == "es"
                 if (climbsSwitch.isChecked != s.includeClimbs) climbsSwitch.isChecked = s.includeClimbs
@@ -359,126 +316,41 @@ class MainActivity : ComponentActivity() {
                     ThemePreference.DARK -> if (curEs) "Noche" else "Night"
                     ThemePreference.LIGHT -> if (curEs) "Día" else "Day"
                 }
-                val isMetricDist = s.unitPreference.resolveMetric(settingsStore.getLastKnownKarooMetricDistance())
+                val isMetricDist = s.unitPreference.resolveMetric(karooMetricDist)
                 rowMetricValueText.text = curStrings.rowMetricModeLabel(s.rowMetricMode)
                 timeModeValueText.text = curStrings.timeDisplayModeLabel(s.timeDisplayMode)
                 unitValueText.text = curStrings.unitPreferenceLabel(s.unitPreference)
                 speedValueText.text = CueFormatter.formatSpeed(s.defaultFlatSpeedKmh, isMetricDist, decimals = 0)
                 timeoutValueText.text = "${s.autoReturnSeconds} s"
                 refreshIntervalValueText.text = "${s.refreshIntervalSeconds} s"
-                refreshInteractivePreview(s)
             }
         }
+
+        connectKarooUserProfile()
     }
 
-    @SuppressLint("ClickableViewAccessibility")
-    private fun setupInteractivePreviewTouch(view: ImageView) {
-        view.setOnTouchListener { v, event ->
-            if (event.action == MotionEvent.ACTION_UP && v.width > 0 && v.height > 0) {
-                val relX = event.x / v.width.toFloat()
-                val relY = event.y / v.height.toFloat()
-                val currentSettings = settingsStore.settings.value
-                val snap = DemoRouteProvider.buildDemoSnapshot(
-                    settings = currentSettings,
-                    manualStartIndex = previewManualIndex,
-                    selectedDetailId = previewDetailId,
-                    detailRemainingSeconds = if (previewDetailLocked) 0 else currentSettings.autoReturnSeconds,
-                    isDetailLocked = previewDetailLocked,
-                    isMetricDistance = settingsStore.getLastKnownKarooMetricDistance(),
-                    isMetricElevation = settingsStore.getLastKnownKarooMetricElevation(),
-                    isFilterOpen = previewFilterOpen,
-                    filterScrollIndex = previewFilterScrollIndex,
-                )
-
-                if (previewFilterOpen && snap.availableCategories.isNotEmpty()) {
-                    val maxFilterStart = (snap.availableCategories.size - 5).coerceAtLeast(0)
-                    if (relY <= 0.11f) {
-                        when {
-                            relX <= 0.56f -> {
-                                previewFilterOpen = false
-                                previewFilterScrollIndex = 0
-                            }
-                            relX <= 0.775f -> {
-                                previewFilterScrollIndex = (previewFilterScrollIndex - 1).coerceIn(0, maxFilterStart)
-                            }
-                            else -> {
-                                previewFilterScrollIndex = (previewFilterScrollIndex + 1).coerceIn(0, maxFilterStart)
-                            }
-                        }
-                    } else {
-                        val rowIdx = (((relY - 0.10f) / 0.18f).toInt()).coerceIn(0, 4)
-                        val effectiveStart = previewFilterScrollIndex.coerceIn(0, maxFilterStart)
-                        val tappedCat = snap.availableCategories.getOrNull(effectiveStart + rowIdx)
-                        if (tappedCat != null) {
-                            previewManualIndex = null
-                            settingsStore.toggleCategory(tappedCat.category)
-                        }
-                    }
-                } else if (previewDetailId != null) {
-                    if (relY <= 0.11f && relX > 0.80f) {
-                        previewDetailLocked = !previewDetailLocked
-                    } else if (relY <= 0.11f || !previewDetailLocked) {
-                        previewDetailId = null
-                        previewDetailLocked = false
-                    }
-                } else if (relY <= 0.11f) {
-                    when {
-                        relX <= 0.24f -> {
-                            if (snap.availableCategories.isNotEmpty()) {
-                                previewFilterOpen = true
-                                previewFilterScrollIndex = 0
-                            }
-                        }
-                        relX <= 0.56f -> {
-                            previewManualIndex = null
-                        }
-                        relX <= 0.775f -> {
-                            previewManualIndex = CueListWindowBuilder.computeNextScrollIndex(
-                                snap.allPoints, previewManualIndex, -1
-                            )
-                        }
-                        else -> {
-                            previewManualIndex = CueListWindowBuilder.computeNextScrollIndex(
-                                snap.allPoints, previewManualIndex, +1
-                            )
-                        }
-                    }
-                } else {
-                    val rowIdx = (((relY - 0.10f) / 0.18f).toInt()).coerceIn(0, 4)
-                    val tapped = snap.window.rows.getOrNull(rowIdx)
-                    if (tapped != null) {
-                        previewDetailId = tapped.id
-                        previewDetailLocked = false
-                    }
-                }
-                refreshInteractivePreview(settingsStore.settings.value)
-            }
-            true
+    override fun onDestroy() {
+        val service = karooSystem
+        userProfileConsumerId?.let { id ->
+            runCatching { service?.removeConsumer(id) }
         }
+        userProfileConsumerId = null
+        runCatching { service?.disconnect() }
+        karooSystem = null
+        super.onDestroy()
     }
 
-    private fun refreshInteractivePreview(settings: CueSheetSettings) {
-        val snap = DemoRouteProvider.buildDemoSnapshot(
-            settings = settings,
-            manualStartIndex = previewManualIndex,
-            selectedDetailId = previewDetailId,
-            detailRemainingSeconds = if (previewDetailLocked) 0 else settings.autoReturnSeconds,
-            isDetailLocked = previewDetailLocked,
-            isMetricDistance = settingsStore.getLastKnownKarooMetricDistance(),
-            isMetricElevation = settingsStore.getLastKnownKarooMetricElevation(),
-            isFilterOpen = previewFilterOpen,
-            filterScrollIndex = previewFilterScrollIndex,
-        )
-        val isNight = when (settings.themePreference) {
-            ThemePreference.DARK -> true
-            ThemePreference.LIGHT -> false
-            ThemePreference.AUTO -> {
-                val nightMask = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                nightMask == Configuration.UI_MODE_NIGHT_YES
+    private fun connectKarooUserProfile() {
+        val service = KarooSystemService(applicationContext)
+        karooSystem = service
+        service.connect { connected ->
+            if (!connected) return@connect
+            userProfileConsumerId = service.addConsumer<UserProfile>(UserProfile.Params) { profile ->
+                val metricDist = profile.preferredUnit.distance == UserProfile.PreferredUnit.UnitType.METRIC
+                val metricElev = profile.preferredUnit.elevation == UserProfile.PreferredUnit.UnitType.METRIC
+                settingsStore.saveKarooUnits(metricDist, metricElev)
             }
         }
-        previewFullImage.setImageBitmap(CueSheetRenderer.renderFullPage(snap, 420, 680, isNight))
-        previewSingleImage.setImageBitmap(CueSheetRenderer.renderSingleField(snap, 420, 130, isWideSlot = true, isNightMode = isNight))
     }
 
     private fun cycleTheme(delta: Int) {

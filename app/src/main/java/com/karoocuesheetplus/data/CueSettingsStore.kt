@@ -8,7 +8,6 @@ import com.karoocuesheetplus.domain.SurfacePreference
 import com.karoocuesheetplus.domain.ThemePreference
 import com.karoocuesheetplus.domain.TimeDisplayMode
 import com.karoocuesheetplus.domain.UnitPreference
-import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +18,9 @@ class CueSettingsStore private constructor(context: Context) {
 
     private val _settings = MutableStateFlow(loadSettings())
     val settings: StateFlow<CueSheetSettings> = _settings.asStateFlow()
+
+    private val _karooMetricDistance = MutableStateFlow(getLastKnownKarooMetricDistance())
+    val karooMetricDistance: StateFlow<Boolean> = _karooMetricDistance.asStateFlow()
 
     fun getPersistedLearnedFlatSpeedKmh(): Double {
         val v = prefs.getFloat(KEY_LEARNED_FLAT_SPEED_KMH, -1f).toDouble()
@@ -32,17 +34,11 @@ class CueSettingsStore private constructor(context: Context) {
     }
 
     fun getLastKnownKarooMetricDistance(): Boolean {
-        if (prefs.contains(KEY_KAROO_METRIC_DISTANCE)) {
-            return prefs.getBoolean(KEY_KAROO_METRIC_DISTANCE, true)
-        }
-        return Locale.getDefault().country.uppercase(Locale.ROOT) !in IMPERIAL_COUNTRIES
+        return prefs.getBoolean(KEY_KAROO_METRIC_DISTANCE, true)
     }
 
     fun getLastKnownKarooMetricElevation(): Boolean {
-        if (prefs.contains(KEY_KAROO_METRIC_ELEVATION)) {
-            return prefs.getBoolean(KEY_KAROO_METRIC_ELEVATION, true)
-        }
-        return Locale.getDefault().country.uppercase(Locale.ROOT) !in IMPERIAL_COUNTRIES
+        return prefs.getBoolean(KEY_KAROO_METRIC_ELEVATION, true)
     }
 
     fun saveKarooUnits(isMetricDistance: Boolean, isMetricElevation: Boolean) {
@@ -50,6 +46,7 @@ class CueSettingsStore private constructor(context: Context) {
             .putBoolean(KEY_KAROO_METRIC_DISTANCE, isMetricDistance)
             .putBoolean(KEY_KAROO_METRIC_ELEVATION, isMetricElevation)
             .apply()
+        _karooMetricDistance.value = isMetricDistance
     }
 
     fun update(transform: (CueSheetSettings) -> CueSheetSettings) {
@@ -146,7 +143,6 @@ class CueSettingsStore private constructor(context: Context) {
         private const val KEY_KAROO_METRIC_DISTANCE = "karoo_metric_distance"
         private const val KEY_KAROO_METRIC_ELEVATION = "karoo_metric_elevation"
         private const val KEY_DISABLED_CATEGORIES = "disabled_categories"
-        private val IMPERIAL_COUNTRIES = setOf("US", "GB", "LR", "MM")
 
         @Volatile
         private var instance: CueSettingsStore? = null

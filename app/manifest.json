@@ -1,17 +1,17 @@
 {
   "label": "Cue Sheet+",
   "packageName": "com.karoocuesheetplus",
-  "iconUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.6/cuesheet-icon.png",
-  "latestApkUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.6/KarooCueSheetPlus-v1.0.6-release.apk",
-  "latestVersion": "1.0.6",
-  "latestVersionCode": 7,
+  "iconUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.7/cuesheet-icon.png",
+  "latestApkUrl": "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.7/KarooCueSheetPlus-v1.0.7-release.apk",
+  "latestVersion": "1.0.7",
+  "latestVersionCode": 8,
   "developer": "apopovsky",
   "description": "Enhanced Course Points & Cue Sheet extension for Hammerhead Karoo 3.\n\n• Full-Page View: 5-row high-contrast list of upcoming Waypoints, POIs, Climbs, and Finish with manual ▲/▼ scrolling.\n• Interactive Detail Card: Tap any row to inspect its elevation sparkline profile, distance to go, ascent/descent, and optional padlock lock.\n• Single-Field Data View: Compact Next Waypoint cell (1-column or wide) with category badge, distance, and live ETA.\n• Terrain & VAM ETA Engine: Auto-detects Road, Gravel, or MTB profile and adapts rolling flat pace and climbing VAM.\n• Smart Route Tools: Climb summit integration, nearby account POIs, multi-lap circuit deduplication, Day/Night themes, and multilingual UI (EN/ES/PT/FR/IT/DE).",
-  "releaseNotes": "v1.0.6: Added Solo Metric Mode (Time Only or Distance Only) with extra-large font for quick glances while riding; added full imperial/mph unit support in settings, preview, and empty state with Auto/Metric/Imperial selection; added external deep-link support for Live Cue Sheet; added POI import tip (Ride with GPS Web URL vs .FIT).",
+  "releaseNotes": "v1.0.7: Removed preview card from extension settings for a cleaner, faster configuration screen; fixed initial flat seed speed units in Auto mode by reading Karoo UserProfile units live instead of falling back to system locale.",
   "screenshotUrls": [
-    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.6/screenshot-cuesheet-list.png",
-    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.6/screenshot-cuesheet-filter.png",
-    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.6/screenshot-cuesheet-detail.png"
+    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.7/screenshot-cuesheet-list.png",
+    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.7/screenshot-cuesheet-filter.png",
+    "https://github.com/apopovsky/KarooCueSheetPlus/releases/download/v1.0.7/screenshot-cuesheet-detail.png"
   ],
   "tags": [
     "performance"
