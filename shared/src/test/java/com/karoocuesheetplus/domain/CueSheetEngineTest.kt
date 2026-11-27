@@ -444,6 +444,46 @@ class CueSheetEngineTest {
         assertEquals(CueCategory.FINISH, filteredPoints[1].category)
     }
 
+    @Test
+    fun `speed formatter and base pace strings support both kmh and mph`() {
+        assertEquals("25 km/h", CueFormatter.formatSpeed(25.0, isMetric = true, decimals = 0))
+        assertEquals("16 mph", CueFormatter.formatSpeed(25.0, isMetric = false, decimals = 0))
+        assertEquals("25.0 km/h", CueFormatter.formatSpeed(25.0, isMetric = true, decimals = 1))
+        assertEquals("15.5 mph", CueFormatter.formatSpeed(25.0, isMetric = false, decimals = 1))
+        assertEquals(25.0, CueFormatter.mphToKmh(CueFormatter.kmhToMph(25.0)), 1e-6)
+
+        assertEquals("Flat base pace: 25.0 km/h", CueStrings.EN.formatBaseFlatPace(25.0, isMetric = true))
+        assertEquals("Flat base pace: 15.5 mph", CueStrings.EN.formatBaseFlatPace(25.0, isMetric = false))
+        assertEquals("Ritmo base llano: 15.5 mph", CueStrings.ES.formatBaseFlatPace(25.0, isMetric = false))
+    }
+
+    @Test
+    fun `unit preference and row metric mode propagate into demo snapshot`() {
+        assertTrue(UnitPreference.AUTO.resolveMetric(karooDefaultMetric = true))
+        assertFalse(UnitPreference.AUTO.resolveMetric(karooDefaultMetric = false))
+        assertTrue(UnitPreference.METRIC.resolveMetric(karooDefaultMetric = false))
+        assertFalse(UnitPreference.IMPERIAL.resolveMetric(karooDefaultMetric = true))
+
+        val settings = CueSheetSettings(
+            rowMetricMode = RowMetricMode.TIME_ONLY,
+            timeDisplayMode = TimeDisplayMode.ETE_MINUTES_ONLY,
+            unitPreference = UnitPreference.IMPERIAL,
+        )
+        val snap = DemoRouteProvider.buildDemoSnapshot(
+            settings = settings,
+            manualStartIndex = null,
+            selectedDetailId = null,
+            detailRemainingSeconds = 0,
+            isMetricDistance = true,
+            isMetricElevation = true,
+            strings = CueStrings.EN,
+        )
+        assertEquals(RowMetricMode.TIME_ONLY, snap.rowMetricMode)
+        assertEquals(TimeDisplayMode.ETE_MINUTES_ONLY, snap.timeDisplayMode)
+        assertFalse(snap.isMetricDistance)
+        assertFalse(snap.isMetricElevation)
+    }
+
     private fun assertEquals(expected: Double, actual: Double, delta: Double) {
         org.junit.Assert.assertEquals(expected, actual, delta)
     }

@@ -10,6 +10,21 @@ object CueFormatter {
 
     private const val METERS_PER_MILE = 1609.344
     private const val FEET_PER_METER = 3.28084
+    const val KMH_PER_MPH = 1.609344
+
+    fun kmhToMph(kmh: Double): Double = kmh / KMH_PER_MPH
+
+    fun mphToKmh(mph: Double): Double = mph * KMH_PER_MPH
+
+    fun formatSpeed(speedKmh: Double, isMetric: Boolean, decimals: Int = 0): String {
+        val value = if (isMetric) speedKmh else kmhToMph(speedKmh)
+        val unit = if (isMetric) "km/h" else "mph"
+        return if (decimals <= 0) {
+            String.format(Locale.US, "%d %s", value.roundToInt(), unit)
+        } else {
+            String.format(Locale.US, "%.${decimals}f %s", value, unit)
+        }
+    }
 
     data class DistanceText(
         val value: String,

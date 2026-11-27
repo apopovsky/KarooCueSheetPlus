@@ -3,9 +3,12 @@ package com.karoocuesheetplus.data
 import android.content.Context
 import com.karoocuesheetplus.domain.CueCategory
 import com.karoocuesheetplus.domain.CueSheetSettings
+import com.karoocuesheetplus.domain.RowMetricMode
 import com.karoocuesheetplus.domain.SurfacePreference
 import com.karoocuesheetplus.domain.ThemePreference
 import com.karoocuesheetplus.domain.TimeDisplayMode
+import com.karoocuesheetplus.domain.UnitPreference
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +31,27 @@ class CueSettingsStore private constructor(context: Context) {
         }
     }
 
+    fun getLastKnownKarooMetricDistance(): Boolean {
+        if (prefs.contains(KEY_KAROO_METRIC_DISTANCE)) {
+            return prefs.getBoolean(KEY_KAROO_METRIC_DISTANCE, true)
+        }
+        return Locale.getDefault().country.uppercase(Locale.ROOT) !in IMPERIAL_COUNTRIES
+    }
+
+    fun getLastKnownKarooMetricElevation(): Boolean {
+        if (prefs.contains(KEY_KAROO_METRIC_ELEVATION)) {
+            return prefs.getBoolean(KEY_KAROO_METRIC_ELEVATION, true)
+        }
+        return Locale.getDefault().country.uppercase(Locale.ROOT) !in IMPERIAL_COUNTRIES
+    }
+
+    fun saveKarooUnits(isMetricDistance: Boolean, isMetricElevation: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_KAROO_METRIC_DISTANCE, isMetricDistance)
+            .putBoolean(KEY_KAROO_METRIC_ELEVATION, isMetricElevation)
+            .apply()
+    }
+
     fun update(transform: (CueSheetSettings) -> CueSheetSettings) {
         val next = transform(_settings.value)
         prefs.edit()
@@ -40,6 +64,8 @@ class CueSettingsStore private constructor(context: Context) {
             .putString(KEY_THEME_PREF, next.themePreference.name)
             .putString(KEY_SURFACE_PREF, next.surfacePreference.name)
             .putString(KEY_TIME_DISPLAY_MODE, next.timeDisplayMode.name)
+            .putString(KEY_ROW_METRIC_MODE, next.rowMetricMode.name)
+            .putString(KEY_UNIT_PREF, next.unitPreference.name)
             .putString(
                 KEY_DISABLED_CATEGORIES,
                 next.disabledCategories
@@ -72,6 +98,12 @@ class CueSettingsStore private constructor(context: Context) {
         val timeModeStr = prefs.getString(KEY_TIME_DISPLAY_MODE, TimeDisplayMode.ETA_AND_ETE.name)
         val timeMode = runCatching { TimeDisplayMode.valueOf(timeModeStr ?: TimeDisplayMode.ETA_AND_ETE.name) }
             .getOrDefault(TimeDisplayMode.ETA_AND_ETE)
+        val rowMetricStr = prefs.getString(KEY_ROW_METRIC_MODE, RowMetricMode.DISTANCE_AND_TIME.name)
+        val rowMetric = runCatching { RowMetricMode.valueOf(rowMetricStr ?: RowMetricMode.DISTANCE_AND_TIME.name) }
+            .getOrDefault(RowMetricMode.DISTANCE_AND_TIME)
+        val unitPrefStr = prefs.getString(KEY_UNIT_PREF, UnitPreference.AUTO.name)
+        val unitPref = runCatching { UnitPreference.valueOf(unitPrefStr ?: UnitPreference.AUTO.name) }
+            .getOrDefault(UnitPreference.AUTO)
         val disabledCatsRaw = prefs.getString(KEY_DISABLED_CATEGORIES, "").orEmpty()
         val disabledCats = disabledCatsRaw
             .split(',')
@@ -91,6 +123,8 @@ class CueSettingsStore private constructor(context: Context) {
             themePreference = theme,
             surfacePreference = surf,
             timeDisplayMode = timeMode,
+            rowMetricMode = rowMetric,
+            unitPreference = unitPref,
             disabledCategories = disabledCats,
         )
     }
@@ -107,7 +141,12 @@ class CueSettingsStore private constructor(context: Context) {
         private const val KEY_THEME_PREF = "theme_pref"
         private const val KEY_SURFACE_PREF = "surface_pref"
         private const val KEY_TIME_DISPLAY_MODE = "time_display_mode"
+        private const val KEY_ROW_METRIC_MODE = "row_metric_mode"
+        private const val KEY_UNIT_PREF = "unit_pref"
+        private const val KEY_KAROO_METRIC_DISTANCE = "karoo_metric_distance"
+        private const val KEY_KAROO_METRIC_ELEVATION = "karoo_metric_elevation"
         private const val KEY_DISABLED_CATEGORIES = "disabled_categories"
+        private val IMPERIAL_COUNTRIES = setOf("US", "GB", "LR", "MM")
 
         @Volatile
         private var instance: CueSettingsStore? = null

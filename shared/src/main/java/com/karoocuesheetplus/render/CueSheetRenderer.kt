@@ -17,6 +17,7 @@ import com.karoocuesheetplus.domain.CueFormatter
 import com.karoocuesheetplus.domain.CueListWindowBuilder
 import com.karoocuesheetplus.domain.CuePoint
 import com.karoocuesheetplus.domain.CueSheetSnapshot
+import com.karoocuesheetplus.domain.RowMetricMode
 import com.karoocuesheetplus.domain.TimeDisplayMode
 import java.util.Locale
 import kotlin.math.max
@@ -623,61 +624,134 @@ object CueSheetRenderer {
         val iconCy = top + rowH * 0.50f
         drawWaypointBadge(canvas, iconCx, iconCy, iconRadius, point.category, point.isPassed, p)
 
-        // Right-side metrics (Distance on top, ETA + ETE on bottom)
+        // Right-side metrics (Distance + Time, or enlarged solo Time / solo Distance)
         val rightEdge = w - padX - w * 0.01f
-        val distFormatted = CueFormatter.formatDistance(point.deltaDistanceM, snapshot.isMetricDistance)
-
-        val unitPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = boldSans
-            textSize = rowH * 0.22f
-            color = if (point.isPassed) p.textMuted else p.textSecondary
-            textAlign = Paint.Align.RIGHT
-        }
-        val distNumPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = boldSans
-            textSize = rowH * 0.37f
-            color = if (point.isPassed) p.textMuted else p.textPrimary
-            textAlign = Paint.Align.RIGHT
-        }
-        val isEteOnlyMode = snapshot.timeDisplayMode != TimeDisplayMode.ETA_AND_ETE
-        val showLargerEte = isEteOnlyMode && !point.isPassed
-
-        val unitText = " ${distFormatted.unit}"
-        val unitW = unitPaint.measureText(unitText)
-        val distBaseline = top + rowH * (if (showLargerEte) 0.42f else 0.45f)
-        canvas.drawText(unitText, rightEdge, distBaseline, unitPaint)
-        canvas.drawText(distFormatted.value, rightEdge - unitW, distBaseline, distNumPaint)
-
-        // Right secondary text (ETA + ETE, ETE only, or "✓ Done" / "✓ Completado")
         val s = snapshot.strings
-        val subRightText = if (point.isPassed) {
-            s.completedRowRight
-        } else {
-            CueFormatter.formatRowTime(
-                etaEpochMillis = point.etaEpochMillis,
-                eteSeconds = point.eteSeconds,
-                is24Hour = snapshot.is24HourFormat,
-                mode = snapshot.timeDisplayMode,
-            )
-        }
-        val subRightPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = if (point.isNextActive || point.isPassed || showLargerEte) boldSans else mediumSans
-            textSize = rowH * (if (showLargerEte) 0.30f else 0.215f)
-            color = when {
-                point.isPassed -> p.passedGreen
-                point.isNextActive || (showLargerEte && point.category == CueCategory.FINISH) -> p.accentTime
-                else -> p.textSecondary
-            }
-            textAlign = Paint.Align.RIGHT
-        }
-        val subBaseline = top + rowH * (if (showLargerEte) 0.82f else 0.78f)
-        canvas.drawText(subRightText, rightEdge, subBaseline, subRightPaint)
+        val maxSoloRightW = w * 0.44f
 
-        // Measure occupied right width so left name never overlaps right numbers
-        val rightBlockWidth = max(
-            distNumPaint.measureText(distFormatted.value) + unitW,
-            subRightPaint.measureText(subRightText)
-        ) + w * 0.04f
+        val rightBlockWidth = when (snapshot.rowMetricMode) {
+            RowMetricMode.TIME_ONLY -> {
+                val soloText = if (point.isPassed) {
+                    s.completedRowRight
+                } else {
+                    CueFormatter.formatRowTime(
+                        etaEpochMillis = point.etaEpochMillis,
+                        eteSeconds = point.eteSeconds,
+                        is24Hour = snapshot.is24HourFormat,
+                        mode = snapshot.timeDisplayMode,
+                    )
+                }
+                val isEteOnlyMode = snapshot.timeDisplayMode != TimeDisplayMode.ETA_AND_ETE
+                val baseSize = when {
+                    point.isPassed -> rowH * 0.30f
+                    isEteOnlyMode -> rowH * 0.54f
+                    else -> rowH * 0.36f
+                }
+                val soloPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = boldSans
+                    textSize = baseSize
+                    color = when {
+                        point.isPassed -> p.passedGreen
+                        point.isNextActive || point.category == CueCategory.FINISH -> p.accentTime
+                        else -> p.textPrimary
+                    }
+                    textAlign = Paint.Align.RIGHT
+                }
+                val measured = soloPaint.measureText(soloText)
+                if (measured > maxSoloRightW && measured > 0f) {
+                    soloPaint.textSize = (baseSize * (maxSoloRightW / measured)).coerceAtLeast(rowH * 0.24f)
+                }
+                val baseline = top + rowH * 0.5f - (soloPaint.descent() + soloPaint.ascent()) * 0.5f
+                canvas.drawText(soloText, rightEdge, baseline, soloPaint)
+                soloPaint.measureText(soloText) + w * 0.04f
+            }
+
+            RowMetricMode.DISTANCE_ONLY -> {
+                val distFormatted = CueFormatter.formatDistance(point.deltaDistanceM, snapshot.isMetricDistance)
+                val unitText = " ${distFormatted.unit}"
+                var distSize = rowH * 0.54f
+                var unitSize = rowH * 0.27f
+                val distNumPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = boldSans
+                    textSize = distSize
+                    color = if (point.isPassed) p.textMuted else p.textPrimary
+                    textAlign = Paint.Align.RIGHT
+                }
+                val unitPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = boldSans
+                    textSize = unitSize
+                    color = if (point.isPassed) p.textMuted else p.textSecondary
+                    textAlign = Paint.Align.RIGHT
+                }
+                val totalW = distNumPaint.measureText(distFormatted.value) + unitPaint.measureText(unitText)
+                if (totalW > maxSoloRightW && totalW > 0f) {
+                    val scale = (maxSoloRightW / totalW).coerceAtLeast(0.55f)
+                    distSize *= scale
+                    unitSize *= scale
+                    distNumPaint.textSize = distSize
+                    unitPaint.textSize = unitSize
+                }
+                val unitW = unitPaint.measureText(unitText)
+                val baseline = top + rowH * 0.5f - (distNumPaint.descent() + distNumPaint.ascent()) * 0.5f
+                canvas.drawText(unitText, rightEdge, baseline, unitPaint)
+                canvas.drawText(distFormatted.value, rightEdge - unitW, baseline, distNumPaint)
+                distNumPaint.measureText(distFormatted.value) + unitW + w * 0.04f
+            }
+
+            RowMetricMode.DISTANCE_AND_TIME -> {
+                val distFormatted = CueFormatter.formatDistance(point.deltaDistanceM, snapshot.isMetricDistance)
+                val unitPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = boldSans
+                    textSize = rowH * 0.22f
+                    color = if (point.isPassed) p.textMuted else p.textSecondary
+                    textAlign = Paint.Align.RIGHT
+                }
+                val distNumPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = boldSans
+                    textSize = rowH * 0.37f
+                    color = if (point.isPassed) p.textMuted else p.textPrimary
+                    textAlign = Paint.Align.RIGHT
+                }
+                val isEteOnlyMode = snapshot.timeDisplayMode != TimeDisplayMode.ETA_AND_ETE
+                val showLargerEte = isEteOnlyMode && !point.isPassed
+
+                val unitText = " ${distFormatted.unit}"
+                val unitW = unitPaint.measureText(unitText)
+                val distBaseline = top + rowH * (if (showLargerEte) 0.42f else 0.45f)
+                canvas.drawText(unitText, rightEdge, distBaseline, unitPaint)
+                canvas.drawText(distFormatted.value, rightEdge - unitW, distBaseline, distNumPaint)
+
+                // Right secondary text (ETA + ETE, ETE only, or "✓ Done" / "✓ Completado")
+                val subRightText = if (point.isPassed) {
+                    s.completedRowRight
+                } else {
+                    CueFormatter.formatRowTime(
+                        etaEpochMillis = point.etaEpochMillis,
+                        eteSeconds = point.eteSeconds,
+                        is24Hour = snapshot.is24HourFormat,
+                        mode = snapshot.timeDisplayMode,
+                    )
+                }
+                val subRightPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                    typeface = if (point.isNextActive || point.isPassed || showLargerEte) boldSans else mediumSans
+                    textSize = rowH * (if (showLargerEte) 0.30f else 0.215f)
+                    color = when {
+                        point.isPassed -> p.passedGreen
+                        point.isNextActive || (showLargerEte && point.category == CueCategory.FINISH) -> p.accentTime
+                        else -> p.textSecondary
+                    }
+                    textAlign = Paint.Align.RIGHT
+                }
+                val subBaseline = top + rowH * (if (showLargerEte) 0.82f else 0.78f)
+                canvas.drawText(subRightText, rightEdge, subBaseline, subRightPaint)
+
+                // Measure occupied right width so left name never overlaps right numbers
+                max(
+                    distNumPaint.measureText(distFormatted.value) + unitW,
+                    subRightPaint.measureText(subRightText)
+                ) + w * 0.04f
+            }
+        }
 
         // Left text block (Waypoint Name + Ascent/Status subtext)
         val textLeft = iconCx + iconRadius + w * 0.032f
@@ -1100,19 +1174,21 @@ object CueSheetRenderer {
         canvas.drawText(s.nextWaypointHeader, padX, hdrBase, hdrPaint)
 
         val isEteOnlyMode = snapshot.timeDisplayMode != TimeDisplayMode.ETA_AND_ETE
-        val hdrRightText = if (isEteOnlyMode) {
-            CueFormatter.formatEteByMode(point.eteSeconds, snapshot.timeDisplayMode)
-        } else {
-            "ETA ${CueFormatter.formatEtaClock(point.etaEpochMillis, snapshot.is24HourFormat)}"
+        if (snapshot.rowMetricMode == RowMetricMode.DISTANCE_AND_TIME) {
+            val hdrRightText = if (isEteOnlyMode) {
+                CueFormatter.formatEteByMode(point.eteSeconds, snapshot.timeDisplayMode)
+            } else {
+                "ETA ${CueFormatter.formatEtaClock(point.etaEpochMillis, snapshot.is24HourFormat)}"
+            }
+            val etaHdrPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface = boldSans
+                textSize = headerH * (if (isEteOnlyMode) 0.64f else 0.58f)
+                color = if (p.isNight) p.accentTime else p.textPrimary
+                textAlign = Paint.Align.RIGHT
+            }
+            val etaHdrBase = headerH * 0.5f - (etaHdrPaint.descent() + etaHdrPaint.ascent()) * 0.5f
+            canvas.drawText(hdrRightText, w - padX, etaHdrBase, etaHdrPaint)
         }
-        val etaHdrPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = boldSans
-            textSize = headerH * (if (isEteOnlyMode) 0.64f else 0.58f)
-            color = if (p.isNight) p.accentTime else p.textPrimary
-            textAlign = Paint.Align.RIGHT
-        }
-        val etaHdrBase = headerH * 0.5f - (etaHdrPaint.descent() + etaHdrPaint.ascent()) * 0.5f
-        canvas.drawText(hdrRightText, w - padX, etaHdrBase, etaHdrPaint)
 
         // Body area
         val bodyTop = headerH
@@ -1122,27 +1198,54 @@ object CueSheetRenderer {
         val iconCy = bodyTop + bodyH * 0.50f
         drawWaypointBadge(canvas, iconCx, iconCy, iconR, point.category, false, p)
 
-        // Right huge distance
-        val dist = CueFormatter.formatDistance(point.deltaDistanceM, snapshot.isMetricDistance)
-        val unitPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = boldSans
-            textSize = bodyH * 0.30f
-            color = p.textSecondary
-            textAlign = Paint.Align.RIGHT
+        // Right huge hero metric (Time in TIME_ONLY mode, otherwise Distance)
+        val rightUsedW = if (snapshot.rowMetricMode == RowMetricMode.TIME_ONLY) {
+            val heroTimeText = if (isEteOnlyMode) {
+                CueFormatter.formatEteByMode(point.eteSeconds, snapshot.timeDisplayMode)
+            } else {
+                CueFormatter.formatRowTime(
+                    etaEpochMillis = point.etaEpochMillis,
+                    eteSeconds = point.eteSeconds,
+                    is24Hour = snapshot.is24HourFormat,
+                    mode = snapshot.timeDisplayMode,
+                )
+            }
+            val baseSize = if (isEteOnlyMode) bodyH * 0.60f else bodyH * 0.42f
+            val timePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface = boldSans
+                textSize = baseSize
+                color = if (p.isNight) p.accentTime else p.textPrimary
+                textAlign = Paint.Align.RIGHT
+            }
+            val maxHeroW = w * 0.48f
+            val measured = timePaint.measureText(heroTimeText)
+            if (measured > maxHeroW && measured > 0f) {
+                timePaint.textSize = (baseSize * (maxHeroW / measured)).coerceAtLeast(bodyH * 0.28f)
+            }
+            val timeBase = bodyTop + bodyH * 0.52f - (timePaint.descent() + timePaint.ascent()) * 0.45f
+            canvas.drawText(heroTimeText, w - padX, timeBase, timePaint)
+            timePaint.measureText(heroTimeText) + w * 0.04f
+        } else {
+            val dist = CueFormatter.formatDistance(point.deltaDistanceM, snapshot.isMetricDistance)
+            val unitPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface = boldSans
+                textSize = bodyH * 0.30f
+                color = p.textSecondary
+                textAlign = Paint.Align.RIGHT
+            }
+            val distPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface = boldSans
+                textSize = bodyH * 0.58f
+                color = p.textPrimary
+                textAlign = Paint.Align.RIGHT
+            }
+            val unitStr = " ${dist.unit}"
+            val unitW = unitPaint.measureText(unitStr)
+            val distBase = bodyTop + bodyH * 0.52f - (distPaint.descent() + distPaint.ascent()) * 0.38f
+            canvas.drawText(unitStr, w - padX, distBase, unitPaint)
+            canvas.drawText(dist.value, w - padX - unitW, distBase, distPaint)
+            distPaint.measureText(dist.value) + unitW + w * 0.04f
         }
-        val distPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = boldSans
-            textSize = bodyH * 0.58f
-            color = p.textPrimary
-            textAlign = Paint.Align.RIGHT
-        }
-        val unitStr = " ${dist.unit}"
-        val unitW = unitPaint.measureText(unitStr)
-        val distBase = bodyTop + bodyH * 0.52f - (distPaint.descent() + distPaint.ascent()) * 0.38f
-        canvas.drawText(unitStr, w - padX, distBase, unitPaint)
-        canvas.drawText(dist.value, w - padX - unitW, distBase, distPaint)
-
-        val rightUsedW = distPaint.measureText(dist.value) + unitW + w * 0.04f
         val textLeft = iconCx + iconR + w * 0.03f
         val availNameW = (w - padX - rightUsedW - textLeft).coerceAtLeast(w * 0.18f)
 
@@ -1192,29 +1295,56 @@ object CueSheetRenderer {
         val nameBase = topRowCy - (namePaint.descent() + namePaint.ascent()) * 0.5f
         canvas.drawText(clippedName, nameLeft, nameBase, namePaint)
 
-        // Bottom hero: Huge Distance (right-aligned like native Karoo numeric fields)
-        val dist = CueFormatter.formatDistance(point.deltaDistanceM, snapshot.isMetricDistance)
-        val unitPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = boldSans
-            textSize = h * 0.22f
-            color = p.textSecondary
-            textAlign = Paint.Align.RIGHT
+        // Bottom hero: Huge Time (in TIME_ONLY mode) or Huge Distance (right-aligned like native Karoo numeric fields)
+        if (snapshot.rowMetricMode == RowMetricMode.TIME_ONLY) {
+            val isEteOnlyMode = snapshot.timeDisplayMode != TimeDisplayMode.ETA_AND_ETE
+            val heroTimeText = if (isEteOnlyMode) {
+                CueFormatter.formatEteByMode(point.eteSeconds, snapshot.timeDisplayMode)
+            } else {
+                CueFormatter.formatRowTime(
+                    etaEpochMillis = point.etaEpochMillis,
+                    eteSeconds = point.eteSeconds,
+                    is24Hour = snapshot.is24HourFormat,
+                    mode = snapshot.timeDisplayMode,
+                )
+            }
+            val baseSize = if (isEteOnlyMode) h * 0.44f else h * 0.32f
+            val timePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface = boldSans
+                textSize = baseSize
+                color = if (p.isNight) p.accentTime else p.textPrimary
+                textAlign = Paint.Align.RIGHT
+            }
+            val maxW = w - padX * 2f
+            val measured = timePaint.measureText(heroTimeText)
+            if (measured > maxW && measured > 0f) {
+                timePaint.textSize = (baseSize * (maxW / measured)).coerceAtLeast(h * 0.22f)
+            }
+            canvas.drawText(heroTimeText, w - padX, h * 0.84f, timePaint)
+        } else {
+            val dist = CueFormatter.formatDistance(point.deltaDistanceM, snapshot.isMetricDistance)
+            val unitPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface = boldSans
+                textSize = h * 0.22f
+                color = p.textSecondary
+                textAlign = Paint.Align.RIGHT
+            }
+            val distPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                typeface = boldSans
+                textSize = h * 0.44f
+                color = p.textPrimary
+                textAlign = Paint.Align.RIGHT
+            }
+            val unitStr = " ${dist.unit}"
+            val unitW = unitPaint.measureText(unitStr)
+            val maxNumW = w - padX * 2f - unitW
+            if (distPaint.measureText(dist.value) > maxNumW) {
+                distPaint.textSize = h * 0.35f
+            }
+            val distBase = h * 0.84f
+            canvas.drawText(unitStr, w - padX, distBase, unitPaint)
+            canvas.drawText(dist.value, w - padX - unitW, distBase, distPaint)
         }
-        val distPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = boldSans
-            textSize = h * 0.44f
-            color = p.textPrimary
-            textAlign = Paint.Align.RIGHT
-        }
-        val unitStr = " ${dist.unit}"
-        val unitW = unitPaint.measureText(unitStr)
-        val maxNumW = w - padX * 2f - unitW
-        if (distPaint.measureText(dist.value) > maxNumW) {
-            distPaint.textSize = h * 0.35f
-        }
-        val distBase = h * 0.84f
-        canvas.drawText(unitStr, w - padX, distBase, unitPaint)
-        canvas.drawText(dist.value, w - padX - unitW, distBase, distPaint)
     }
 
     // -------------------------------------------------------------------------
@@ -1258,7 +1388,12 @@ object CueSheetRenderer {
             color = p.accentTime
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText(s.formatBaseFlatPace(snapshot.learnedFlatSpeedKmh), w * 0.5f, if (isCompactH) h * 0.78f else h * 0.68f, pacePaint)
+        canvas.drawText(
+            s.formatBaseFlatPace(snapshot.learnedFlatSpeedKmh, snapshot.isMetricDistance),
+            w * 0.5f,
+            if (isCompactH) h * 0.78f else h * 0.68f,
+            pacePaint,
+        )
     }
 
     private fun drawEmptySingleState(

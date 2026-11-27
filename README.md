@@ -39,8 +39,10 @@ Designed to bring the Garmin Course Points list experience to Karoo with clean h
   - **Interactive POI Category Filter:** Tap the top-left filter button to toggle categories present on the current route (e.g. show only Water / Rest Stops while keeping Finish).
   - Supports manual scrolling (touch ▲ / ▼ buttons) with auto-return timeout.
   - Interactive touch on any row displays a full-screen Detail Card with an elevation sparkline profile, distance to go, elevation gain/loss, and gradient-aware ETA.
-- **Configurable Time / ETA Formats & Auto Day/Night Theme:**
+- **Configurable Time / ETA Formats, Solo Metric Mode & Auto Day/Night Theme:**
   - Switch between **ETA + Time** (`10:41 (16m)`), **Hours & Min** (`1h 36m`), or **Minutes Only** (`96m`) — the remaining-time-only modes render in a larger bold font for instant legibility.
+  - **Solo Metric Mode (Extra-Large Font):** Hide distance and display **Time Only** (or **Distance Only**) in an extra-large, vertically centered font for quick glances while riding in a group.
+  - **Metric & Imperial Units (`km/h` & `mph`):** Automatically follows Karoo OS units (`km`/`m`/`km/h` or `mi`/`ft`/`mph`) or lets you override units directly in extension settings.
   - Automatically switches between Light and Dark themes following Karoo OS Day/Night mode (or force Day/Night manually).
 - **Adaptive Shared-Page Rendering:**
   - **Half-Page View (full width):** Automatically switches to a simplified 2–3 row layout with larger, legible typography when sharing a data page.
@@ -72,7 +74,7 @@ https://github.com/apopovsky/KarooCueSheetPlus/releases/latest
 ### Via ADB
 
 ```bash
-adb install -r KarooCueSheetPlus-v1.0.5-release.apk
+adb install -r KarooCueSheetPlus-v1.0.6-release.apk
 ```
 
 ---
@@ -81,6 +83,8 @@ adb install -r KarooCueSheetPlus-v1.0.5-release.apk
 
 - Hammerhead Karoo 3 (or Karoo OS 1.634.2440+ with sideloading enabled).
 - An active route loaded with Waypoints / POIs / Climbs.
+
+> **Tip — Preserving POIs when importing routes:** Uploading a `.FIT` file directly to the Hammerhead Dashboard strips route POI metadata. To keep all rest stops and custom POIs intact, copy your route URL from **Ride with GPS** (or your route planner) and paste it into the **Web URL** field under Hammerhead Dashboard → *Import Route*.
 
 ---
 

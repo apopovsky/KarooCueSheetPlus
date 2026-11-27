@@ -19,6 +19,19 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.LiveCueSheetActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="com.karoocuesheetplus.ACTION_VIEW_WAYPOINT_DETAIL" />
+                <action android:name="com.karoocuesheetplus.ACTION_VIEW_CUESHEET" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".extension.CueSheetExtensionService"
             android:exported="true">
@@ -40,6 +53,8 @@
                 <action android:name="com.karoocuesheetplus.ACTION_CLOSE_DETAIL" />
                 <action android:name="com.karoocuesheetplus.ACTION_TOGGLE_DETAIL_LOCK" />
                 <action android:name="com.karoocuesheetplus.ACTION_TOGGLE_FILTER" />
+                <action android:name="com.karoocuesheetplus.ACTION_OPEN_WAYPOINT_DETAIL" />
+                <action android:name="com.karoocuesheetplus.ACTION_OPEN_CUESHEET_LIST" />
             </intent-filter>
         </receiver>
 

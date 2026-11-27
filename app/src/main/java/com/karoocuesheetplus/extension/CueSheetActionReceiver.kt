@@ -26,6 +26,24 @@ class CueSheetActionReceiver : BroadcastReceiver() {
             ACTION_CLOSE_DETAIL -> repo.closeDetail()
             ACTION_TOGGLE_DETAIL_LOCK -> repo.toggleDetailLock()
             ACTION_TOGGLE_FILTER -> repo.toggleFilterMenu()
+            ACTION_OPEN_WAYPOINT_DETAIL -> {
+                val distM = intent.getDoubleExtra(EXTRA_WAYPOINT_DISTANCE_M, -1.0).takeIf { it >= 0.0 }
+                repo.openExternalWaypointDetail(
+                    waypointId = intent.getStringExtra(EXTRA_WAYPOINT_ID),
+                    waypointName = intent.getStringExtra(EXTRA_WAYPOINT_NAME),
+                    waypointRawName = intent.getStringExtra(EXTRA_WAYPOINT_RAW_NAME),
+                    distanceAlongRouteM = distM,
+                )
+            }
+            ACTION_OPEN_CUESHEET_LIST -> {
+                val distM = intent.getDoubleExtra(EXTRA_WAYPOINT_DISTANCE_M, -1.0).takeIf { it >= 0.0 }
+                repo.openExternalCueSheetList(
+                    waypointId = intent.getStringExtra(EXTRA_WAYPOINT_ID),
+                    waypointName = intent.getStringExtra(EXTRA_WAYPOINT_NAME),
+                    waypointRawName = intent.getStringExtra(EXTRA_WAYPOINT_RAW_NAME),
+                    distanceAlongRouteM = distM,
+                )
+            }
         }
     }
 
@@ -36,6 +54,12 @@ class CueSheetActionReceiver : BroadcastReceiver() {
         const val ACTION_CLOSE_DETAIL = "com.karoocuesheetplus.ACTION_CLOSE_DETAIL"
         const val ACTION_TOGGLE_DETAIL_LOCK = "com.karoocuesheetplus.ACTION_TOGGLE_DETAIL_LOCK"
         const val ACTION_TOGGLE_FILTER = "com.karoocuesheetplus.ACTION_TOGGLE_FILTER"
+        const val ACTION_OPEN_WAYPOINT_DETAIL = "com.karoocuesheetplus.ACTION_OPEN_WAYPOINT_DETAIL"
+        const val ACTION_OPEN_CUESHEET_LIST = "com.karoocuesheetplus.ACTION_OPEN_CUESHEET_LIST"
+        const val EXTRA_WAYPOINT_ID = "extra_waypoint_id"
+        const val EXTRA_WAYPOINT_NAME = "extra_waypoint_name"
+        const val EXTRA_WAYPOINT_RAW_NAME = "extra_waypoint_raw_name"
+        const val EXTRA_WAYPOINT_DISTANCE_M = "extra_waypoint_distance_m"
         private const val EXTRA_ROW_INDEX = "extra_row_index"
 
         private const val REQ_SCROLL_UP = 1001

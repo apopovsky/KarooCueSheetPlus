@@ -21,16 +21,18 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import com.karoocuesheetplus.data.CueSettingsStore
+import com.karoocuesheetplus.domain.CueFormatter
 import com.karoocuesheetplus.domain.CueListWindowBuilder
 import com.karoocuesheetplus.domain.CueSheetSettings
 import com.karoocuesheetplus.domain.CueStrings
 import com.karoocuesheetplus.domain.DemoRouteProvider
+import com.karoocuesheetplus.domain.RowMetricMode
 import com.karoocuesheetplus.domain.SurfacePreference
 import com.karoocuesheetplus.domain.ThemePreference
 import com.karoocuesheetplus.domain.TimeDisplayMode
+import com.karoocuesheetplus.domain.UnitPreference
 import com.karoocuesheetplus.render.CueSheetRenderer
 import kotlinx.coroutines.launch
-import java.util.Locale
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -173,6 +175,18 @@ class MainActivity : ComponentActivity() {
             plusLabel = "▶",
         )
 
+        // Row metric mode selector row (Distance + Time, Time Only Large, Distance Only Large)
+        val rowMetricValueText = addStepperRow(
+            parent = configCard,
+            title = if (isEs) "Métrica en cada fila" else "Row metric display",
+            subtitle = if (isEs) "Muestra distancia + tiempo, o una sola métrica en fuente extra grande"
+            else "Show distance + time, or a single metric in extra-large font",
+            onMinus = { cycleRowMetricMode(-1) },
+            onPlus = { cycleRowMetricMode(+1) },
+            minusLabel = "◀",
+            plusLabel = "▶",
+        )
+
         // Time / ETA format selector row
         val timeModeValueText = addStepperRow(
             parent = configCard,
@@ -185,22 +199,26 @@ class MainActivity : ComponentActivity() {
             plusLabel = "▶",
         )
 
+        // Units selector row (Auto / Metric / Imperial mph)
+        val unitValueText = addStepperRow(
+            parent = configCard,
+            title = if (isEs) "Unidades (km/h o mph)" else "Units (km/h or mph)",
+            subtitle = if (isEs) "Auto sigue Karoo OS, o elige Métrico (km, km/h) / Imperial (mi, mph)"
+            else "Auto follows Karoo OS, or force Metric (km, km/h) / Imperial (mi, mph)",
+            onMinus = { cycleUnitPreference(-1) },
+            onPlus = { cycleUnitPreference(+1) },
+            minusLabel = "◀",
+            plusLabel = "▶",
+        )
+
         // Flat Seed Speed row
         val speedValueText = addStepperRow(
             parent = configCard,
             title = if (isEs) "Velocidad semilla en llano" else "Initial flat seed speed",
-            subtitle = if (isEs) "Referencia inicial en el km 0 (luego aprende llano, subida y bajada)"
-            else "Initial km 0 reference (then learns flat, climb & descent pace live)",
-            onMinus = {
-                settingsStore.update { s ->
-                    s.copy(defaultFlatSpeedKmh = (s.defaultFlatSpeedKmh - 1.0).coerceIn(14.0, 42.0))
-                }
-            },
-            onPlus = {
-                settingsStore.update { s ->
-                    s.copy(defaultFlatSpeedKmh = (s.defaultFlatSpeedKmh + 1.0).coerceIn(14.0, 42.0))
-                }
-            },
+            subtitle = if (isEs) "Referencia inicial al inicio (luego aprende llano, subida y bajada)"
+            else "Initial start reference (then learns flat, climb & descent pace live)",
+            onMinus = { adjustSeedSpeed(-1) },
+            onPlus = { adjustSeedSpeed(+1) },
         )
 
         // Auto-return seconds row
@@ -255,11 +273,13 @@ class MainActivity : ComponentActivity() {
             text = if (isEs) {
                 "1. Ve a Perfiles → Páginas → Añadir Página.\n" +
                     "2. Para la lista completa, elige plantilla de 1 campo y selecciona Karoo Cue Sheet+ → \"Cue Sheet+ (Lista)\".\n" +
-                    "3. Para llevar el aviso compacto junto a tus vatios/pulso, añade \"Próximo Waypoint\" en cualquier celda de 1 o 2 columnas."
+                    "3. Para llevar el aviso compacto junto a tus vatios/pulso, añade \"Próximo Waypoint\" en cualquier celda de 1 o 2 columnas.\n" +
+                    "4. Tip POIs: Al importar rutas en Hammerhead Dashboard, pega la URL web (ej. Ride with GPS) en vez de subir un .FIT para conservar los POIs."
             } else {
                 "1. Go to Profiles → Pages → Add Page.\n" +
                     "2. For the full-page view, pick a 1-field layout and select Karoo Cue Sheet+ → \"Cue Sheet+ (List)\".\n" +
-                    "3. For a compact alert alongside power/HR, add \"Next Waypoint\" to any 1-column or 2-column slot."
+                    "3. For a compact alert alongside power/HR, add \"Next Waypoint\" to any 1-column or 2-column slot.\n" +
+                    "4. POI Tip: When importing routes in Hammerhead Dashboard, paste the Web URL (e.g. Ride with GPS) instead of uploading a .FIT file so POIs are preserved."
             }
             setTextColor(Color.parseColor("#D1D5DB"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
@@ -339,8 +359,11 @@ class MainActivity : ComponentActivity() {
                     ThemePreference.DARK -> if (curEs) "Noche" else "Night"
                     ThemePreference.LIGHT -> if (curEs) "Día" else "Day"
                 }
+                val isMetricDist = s.unitPreference.resolveMetric(settingsStore.getLastKnownKarooMetricDistance())
+                rowMetricValueText.text = curStrings.rowMetricModeLabel(s.rowMetricMode)
                 timeModeValueText.text = curStrings.timeDisplayModeLabel(s.timeDisplayMode)
-                speedValueText.text = String.format(Locale.US, "%d km/h", s.defaultFlatSpeedKmh.roundToInt())
+                unitValueText.text = curStrings.unitPreferenceLabel(s.unitPreference)
+                speedValueText.text = CueFormatter.formatSpeed(s.defaultFlatSpeedKmh, isMetricDist, decimals = 0)
                 timeoutValueText.text = "${s.autoReturnSeconds} s"
                 refreshIntervalValueText.text = "${s.refreshIntervalSeconds} s"
                 refreshInteractivePreview(s)
@@ -361,6 +384,8 @@ class MainActivity : ComponentActivity() {
                     selectedDetailId = previewDetailId,
                     detailRemainingSeconds = if (previewDetailLocked) 0 else currentSettings.autoReturnSeconds,
                     isDetailLocked = previewDetailLocked,
+                    isMetricDistance = settingsStore.getLastKnownKarooMetricDistance(),
+                    isMetricElevation = settingsStore.getLastKnownKarooMetricElevation(),
                     isFilterOpen = previewFilterOpen,
                     filterScrollIndex = previewFilterScrollIndex,
                 )
@@ -439,6 +464,8 @@ class MainActivity : ComponentActivity() {
             selectedDetailId = previewDetailId,
             detailRemainingSeconds = if (previewDetailLocked) 0 else settings.autoReturnSeconds,
             isDetailLocked = previewDetailLocked,
+            isMetricDistance = settingsStore.getLastKnownKarooMetricDistance(),
+            isMetricElevation = settingsStore.getLastKnownKarooMetricElevation(),
             isFilterOpen = previewFilterOpen,
             filterScrollIndex = previewFilterScrollIndex,
         )
@@ -462,11 +489,41 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun cycleRowMetricMode(delta: Int) {
+        val values = RowMetricMode.entries
+        settingsStore.update { s ->
+            val nextIdx = (s.rowMetricMode.ordinal + delta + values.size) % values.size
+            s.copy(rowMetricMode = values[nextIdx])
+        }
+    }
+
     private fun cycleTimeDisplayMode(delta: Int) {
         val values = TimeDisplayMode.entries
         settingsStore.update { s ->
             val nextIdx = (s.timeDisplayMode.ordinal + delta + values.size) % values.size
             s.copy(timeDisplayMode = values[nextIdx])
+        }
+    }
+
+    private fun cycleUnitPreference(delta: Int) {
+        val values = UnitPreference.entries
+        settingsStore.update { s ->
+            val nextIdx = (s.unitPreference.ordinal + delta + values.size) % values.size
+            s.copy(unitPreference = values[nextIdx])
+        }
+    }
+
+    private fun adjustSeedSpeed(delta: Int) {
+        settingsStore.update { s ->
+            val isMetricDist = s.unitPreference.resolveMetric(settingsStore.getLastKnownKarooMetricDistance())
+            val nextKmh = if (isMetricDist) {
+                (s.defaultFlatSpeedKmh + delta.toDouble()).coerceIn(14.0, 42.0)
+            } else {
+                val curMph = CueFormatter.kmhToMph(s.defaultFlatSpeedKmh).roundToInt()
+                val nextMph = (curMph + delta).coerceIn(9, 26)
+                CueFormatter.mphToKmh(nextMph.toDouble()).coerceIn(14.0, 42.0)
+            }
+            s.copy(defaultFlatSpeedKmh = nextKmh)
         }
     }
 

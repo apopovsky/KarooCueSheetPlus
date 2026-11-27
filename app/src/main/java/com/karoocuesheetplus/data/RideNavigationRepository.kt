@@ -6,6 +6,7 @@ import android.content.res.Configuration
 import android.text.format.DateFormat
 import com.karoocuesheetplus.domain.ClimbSegment
 import com.karoocuesheetplus.domain.CueListWindowBuilder
+import com.karoocuesheetplus.domain.CuePointMatcher
 import com.karoocuesheetplus.domain.CueSheetSnapshot
 import com.karoocuesheetplus.domain.CueStrings
 import com.karoocuesheetplus.domain.ElevationSample
@@ -133,6 +134,18 @@ class RideNavigationRepository private constructor(private val appContext: Conte
     @Volatile
     private var filterExpiresAtMs: Long = 0L
 
+    private data class ExternalViewRequest(
+        val openDetail: Boolean,
+        val waypointId: String?,
+        val waypointName: String?,
+        val waypointRawName: String?,
+        val distanceAlongRouteM: Double?,
+        val requestedAtMs: Long,
+    )
+
+    @Volatile
+    private var pendingExternalRequest: ExternalViewRequest? = null
+
     @Volatile
     private var isSystemNightMode: Boolean = isContextNightMode()
 
@@ -258,6 +271,49 @@ class RideNavigationRepository private constructor(private val appContext: Conte
         recomputeSnapshot()
     }
 
+    fun openExternalWaypointDetail(
+        waypointId: String? = null,
+        waypointName: String? = null,
+        waypointRawName: String? = null,
+        distanceAlongRouteM: Double? = null,
+    ) {
+        isFilterOpen = false
+        filterScrollIndex = 0
+        filterExpiresAtMs = 0L
+        pendingExternalRequest = ExternalViewRequest(
+            openDetail = true,
+            waypointId = waypointId,
+            waypointName = waypointName,
+            waypointRawName = waypointRawName,
+            distanceAlongRouteM = distanceAlongRouteM,
+            requestedAtMs = System.currentTimeMillis(),
+        )
+        recomputeSnapshot()
+    }
+
+    fun openExternalCueSheetList(
+        waypointId: String? = null,
+        waypointName: String? = null,
+        waypointRawName: String? = null,
+        distanceAlongRouteM: Double? = null,
+    ) {
+        isFilterOpen = false
+        filterScrollIndex = 0
+        filterExpiresAtMs = 0L
+        selectedDetailWaypointId = null
+        isDetailLocked = false
+        detailExpiresAtMs = 0L
+        pendingExternalRequest = ExternalViewRequest(
+            openDetail = false,
+            waypointId = waypointId,
+            waypointName = waypointName,
+            waypointRawName = waypointRawName,
+            distanceAlongRouteM = distanceAlongRouteM,
+            requestedAtMs = System.currentTimeMillis(),
+        )
+        recomputeSnapshot()
+    }
+
     fun closeDetail() {
         when {
             isFilterOpen -> {
@@ -343,6 +399,7 @@ class RideNavigationRepository private constructor(private val appContext: Conte
         consumerIds += service.addConsumer<UserProfile>(UserProfile.Params) { profile ->
             isMetricDistance = profile.preferredUnit.distance == UserProfile.PreferredUnit.UnitType.METRIC
             isMetricElevation = profile.preferredUnit.elevation == UserProfile.PreferredUnit.UnitType.METRIC
+            settingsStore.saveKarooUnits(isMetricDistance, isMetricElevation)
             if (profile.weight in 40f..140f) {
                 riderWeightKg = profile.weight.toDouble()
             }
@@ -531,14 +588,11 @@ class RideNavigationRepository private constructor(private val appContext: Conte
         val now = System.currentTimeMillis()
         val settings = settingsStore.settings.value
         val is24h = runCatching { DateFormat.is24HourFormat(appContext) }.getOrDefault(true)
-        val detailRemSec = if (selectedDetailWaypointId != null && detailExpiresAtMs > now) {
-            ceil((detailExpiresAtMs - now) / 1000.0).toInt().coerceAtLeast(1)
-        } else {
-            0
-        }
 
         val route = cachedRoute
         val activeSurface = settings.surfacePreference.resolve(detectedKarooSurface)
+        val resolvedMetricDist = settings.unitPreference.resolveMetric(isMetricDistance)
+        val resolvedMetricElev = settings.unitPreference.resolveMetric(isMetricElevation)
         val strings = CueStrings.forLocale()
         isSystemNightMode = isContextNightMode()
         if (route == null || route.indexedPolyline.totalDistanceM <= 1.0) {
@@ -549,11 +603,12 @@ class RideNavigationRepository private constructor(private val appContext: Conte
                 learnedClimbWkg = flatPaceEstimator.climbWheelWkg,
                 learnedVamMh = flatPaceEstimator.vamMh,
                 activeSurface = activeSurface,
-                isMetricDistance = isMetricDistance,
-                isMetricElevation = isMetricElevation,
+                isMetricDistance = resolvedMetricDist,
+                isMetricElevation = resolvedMetricElev,
                 is24HourFormat = is24h,
                 themePreference = settings.themePreference,
                 timeDisplayMode = settings.timeDisplayMode,
+                rowMetricMode = settings.rowMetricMode,
                 isSystemNightMode = isSystemNightMode,
                 strings = strings,
             )
@@ -607,6 +662,46 @@ class RideNavigationRepository private constructor(private val appContext: Conte
             strings = strings,
         )
 
+        val extReq = pendingExternalRequest
+        if (extReq != null) {
+            if (now - extReq.requestedAtMs > 15_000L) {
+                pendingExternalRequest = null
+            } else if (allPoints.isNotEmpty()) {
+                pendingExternalRequest = null
+                val matched = CuePointMatcher.findBestMatch(
+                    allPoints = allPoints,
+                    waypointId = extReq.waypointId,
+                    waypointName = extReq.waypointName,
+                    waypointRawName = extReq.waypointRawName,
+                    distanceAlongRouteM = extReq.distanceAlongRouteM,
+                )
+                if (extReq.openDetail && matched != null) {
+                    selectedDetailWaypointId = matched.id
+                    isDetailLocked = false
+                    detailExpiresAtMs = now + settings.autoReturnSeconds * 1000L
+                } else if (!extReq.openDetail) {
+                    selectedDetailWaypointId = null
+                    isDetailLocked = false
+                    detailExpiresAtMs = 0L
+                    val matchedIdx = matched?.let { m ->
+                        allPoints.indexOfFirst { it.id == m.id }.takeIf { it >= 0 }
+                    }
+                    manualStartIndex = matchedIdx
+                    manualScrollExpiresAtMs = if (matchedIdx != null) {
+                        now + (settings.autoReturnSeconds + 2) * 1000L
+                    } else {
+                        0L
+                    }
+                }
+            }
+        }
+
+        val resolvedDetailRemSec = if (selectedDetailWaypointId != null && detailExpiresAtMs > now) {
+            ceil((detailExpiresAtMs - now) / 1000.0).toInt().coerceAtLeast(1)
+        } else {
+            0
+        }
+
         val window = CueListWindowBuilder.buildWindow(allPoints, manualStartIndex)
         val nextPoint = allPoints.firstOrNull { it.isNextActive } ?: allPoints.lastOrNull()
         val detailPoint = selectedDetailWaypointId?.let { id -> allPoints.firstOrNull { it.id == id } }
@@ -621,17 +716,18 @@ class RideNavigationRepository private constructor(private val appContext: Conte
             window = window,
             nextPoint = nextPoint,
             selectedDetailPoint = detailPoint,
-            detailRemainingSeconds = if (detailPoint != null) detailRemSec else 0,
+            detailRemainingSeconds = if (detailPoint != null) resolvedDetailRemSec else 0,
             isDetailLocked = if (detailPoint != null) isDetailLocked else false,
             learnedFlatSpeedKmh = flatPaceEstimator.flatSpeedKmh,
             learnedClimbWkg = flatPaceEstimator.climbWheelWkg,
             learnedVamMh = flatPaceEstimator.vamMh,
             activeSurface = activeSurface,
-            isMetricDistance = isMetricDistance,
-            isMetricElevation = isMetricElevation,
+            isMetricDistance = resolvedMetricDist,
+            isMetricElevation = resolvedMetricElev,
             is24HourFormat = is24h,
             themePreference = settings.themePreference,
             timeDisplayMode = settings.timeDisplayMode,
+            rowMetricMode = settings.rowMetricMode,
             isSystemNightMode = isSystemNightMode,
             availableCategories = availableCategories,
             isFilterOpen = isFilterOpen,

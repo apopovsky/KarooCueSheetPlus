@@ -252,6 +252,24 @@ enum class TimeDisplayMode {
     ETE_MINUTES_ONLY,
 }
 
+enum class RowMetricMode {
+    DISTANCE_AND_TIME,
+    TIME_ONLY,
+    DISTANCE_ONLY,
+}
+
+enum class UnitPreference {
+    AUTO,
+    METRIC,
+    IMPERIAL;
+
+    fun resolveMetric(karooDefaultMetric: Boolean): Boolean = when (this) {
+        AUTO -> karooDefaultMetric
+        METRIC -> true
+        IMPERIAL -> false
+    }
+}
+
 data class CueCategoryItem(
     val category: CueCategory,
     val count: Int,
@@ -268,6 +286,8 @@ data class CueSheetSettings(
     val themePreference: ThemePreference = ThemePreference.AUTO,
     val surfacePreference: SurfacePreference = SurfacePreference.AUTO,
     val timeDisplayMode: TimeDisplayMode = TimeDisplayMode.ETA_AND_ETE,
+    val rowMetricMode: RowMetricMode = RowMetricMode.DISTANCE_AND_TIME,
+    val unitPreference: UnitPreference = UnitPreference.AUTO,
     val disabledCategories: Set<CueCategory> = emptySet(),
 )
 
@@ -292,6 +312,7 @@ data class CueSheetSnapshot(
     val is24HourFormat: Boolean = true,
     val themePreference: ThemePreference = ThemePreference.AUTO,
     val timeDisplayMode: TimeDisplayMode = TimeDisplayMode.ETA_AND_ETE,
+    val rowMetricMode: RowMetricMode = RowMetricMode.DISTANCE_AND_TIME,
     val isSystemNightMode: Boolean = true,
     val availableCategories: List<CueCategoryItem> = emptyList(),
     val isFilterOpen: Boolean = false,
